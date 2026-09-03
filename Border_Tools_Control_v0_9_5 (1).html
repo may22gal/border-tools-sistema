@@ -1,0 +1,1981 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Border Tools · Centro de Control v0.9.5</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@500;600;700&display=swap');
+:root{
+  --navy:#0b2540;--ink:#101a28;--blue:#176a9d;--bg:#eef1f5;--card:#fff;--text:#1a2733;--muted:#647184;
+  --line:#e1e6ec;--green:#146c46;--greenbg:#e2f4ea;--amber:#9a6604;--amberbg:#fbf0d6;
+  --red:#b23434;--redbg:#fbe8e8;--gray:#eef1f5;
+  --granjero:#0b4d8a;--granjero-bg:#e4f0fb;
+  --troncoso:#6b2fa0;--troncoso-bg:#f0e8fb;
+  --accent:#c8331f;--accent-ink:#8f240f;
+  --makita:#009bde;--makita-bg:#e6f5fd;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box;-webkit-font-smoothing:antialiased}
+html,body{margin:0;min-height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text)}
+button,input,select,textarea{font:inherit}
+.hidden{display:none!important}button{cursor:pointer}
+.num,.numf{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+/* LOGIN */
+.login{min-height:100vh;display:grid;place-items:center;background:linear-gradient(145deg,#061a2e 0%,#0d3558 55%,#142d52 100%)}
+.login-card{width:min(460px,94vw);background:#fff;padding:38px 36px 34px;border-radius:16px;box-shadow:0 30px 80px #00101e4a;border-top:4px solid var(--accent)}
+.brand{display:flex;align-items:center;gap:13px;color:var(--navy);font-weight:900;font-size:20px;letter-spacing:-.02em}
+.logo{width:46px;height:46px;border-radius:13px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:900;font-size:18px}
+.login h1{margin:22px 0 6px;font-size:26px;font-weight:800;letter-spacing:-.03em;color:var(--navy)}
+.lead{color:var(--muted);line-height:1.55;margin:0;font-size:13px}
+.field{margin-top:15px}
+.field label{display:block;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#8899aa;margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;padding:11px 13px;border:1.5px solid #d4dde8;border-radius:10px;background:#fff;color:var(--text);transition:border-color .15s}
+.field textarea{resize:vertical;min-height:70px}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--blue)}
+.primary{border:0;background:var(--accent);color:#fff;padding:11px 16px;border-radius:8px;font-weight:600;font-size:13px;transition:background .12s}
+.primary:hover{background:var(--accent-ink)}
+.primary.blue-btn{background:var(--blue)}
+.secondary{border:1px solid #d0dce8;background:#fff;color:#355870;padding:8px 13px;border-radius:8px;font-weight:600;font-size:12px;transition:background .12s,border-color .12s}
+.secondary:hover{background:#f5f8fb;border-color:#b7c6d6}
+.login .primary{width:100%;margin-top:22px}
+.tip{margin-top:14px;background:#f0f6fb;color:#355870;padding:12px 14px;border-radius:10px;font-size:11px;line-height:1.55;border-left:3px solid var(--blue)}
+
+/* APP SHELL */
+.app{display:grid;grid-template-columns:252px 1fr;min-height:100vh}
+.sidebar{height:100vh;position:sticky;top:0;background:#08243e;color:#c8daea;padding:16px 12px;overflow-y:auto;display:flex;flex-direction:column}
+.sidebar .brand{color:#fff;padding:4px 8px 18px;border-bottom:1px solid #ffffff14;margin-bottom:4px}
+.sidebar .brand .logo{background:var(--accent)}
+.nav .section{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:#6a8da8;padding:16px 12px 5px}
+.nav button{width:100%;text-align:left;border:0;background:transparent;color:#b8ceda;padding:10px 12px;border-radius:9px;margin:1px 0;font-size:12.5px;font-weight:500;display:flex;align-items:center;gap:9px;transition:background .12s,color .12s}
+.nav button:hover{background:#ffffff0f;color:#fff}
+.nav button.active{background:#ffffff18;color:#fff;font-weight:700}
+.nav .ico{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;opacity:.85}
+.nav .ico svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.sidebar-footer{margin-top:auto;padding:14px 12px 4px;border-top:1px solid #ffffff12;font-size:10px;color:#5e7d95}
+.makita-badge{background:var(--makita);color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:999px;letter-spacing:.04em}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{height:62px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:20;flex-shrink:0}
+.demo-badge{background:var(--amberbg);color:var(--amber);padding:5px 10px;border-radius:6px;font-size:10px;font-weight:600;letter-spacing:.02em}
+.userbox{display:flex;align-items:center;gap:10px}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px}
+.user-meta b{font-size:12px;font-weight:700;display:block}
+.user-meta small{font-size:10px;color:var(--muted)}
+.content{padding:24px;flex:1}
+
+/* LAYOUT */
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.page-head h2{margin:0;color:#102e4a;font-size:26px;font-weight:800;letter-spacing:-.03em}
+.page-head p{margin:5px 0 0;color:var(--muted);font-size:12.5px;line-height:1.5}
+.page-actions{display:flex;gap:8px;flex-wrap:wrap}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.two{display:grid;grid-template-columns:1.4fr 1fr;gap:13px;margin-top:13px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px}
+.card h3{margin:0 0 14px;color:#122e48;font-size:14px;font-weight:700}
+
+/* KPI */
+.kpi{border-left:3px solid var(--line);border-radius:8px}
+.kpi .label{font-size:10px;color:var(--muted);letter-spacing:.02em;font-weight:600}
+.kpi .value{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:25px;color:var(--navy);font-weight:600;margin-top:9px;letter-spacing:-.01em}
+.kpi .value .num{font-size:inherit;font-weight:inherit;letter-spacing:inherit}
+.kpi .sub{font-size:10.5px;color:var(--muted);margin-top:7px}
+.kpi-makita{border-left-color:var(--makita)}
+
+/* SUCURSAL TABS */
+.suc-tabs{display:flex;gap:6px;margin-bottom:16px;background:var(--gray);border-radius:10px;padding:4px}
+.suc-tab{border:0;background:transparent;color:var(--muted);padding:8px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
+.suc-tab.ag{background:#fff;color:var(--granjero);box-shadow:0 1px 4px #0003}
+.suc-tab.at{background:#fff;color:var(--troncoso);box-shadow:0 1px 4px #0003}
+.suc-tab.aa{background:#fff;color:var(--navy);box-shadow:0 1px 4px #0003}
+.dg{width:8px;height:8px;border-radius:50%;background:var(--granjero);display:inline-block}
+.dt{width:8px;height:8px;border-radius:50%;background:var(--troncoso);display:inline-block}
+.da{width:8px;height:8px;border-radius:50%;background:var(--navy);display:inline-block}
+
+/* TABLES */
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+table{border-collapse:collapse;width:100%;min-width:700px}
+th,td{padding:10px 13px;border-bottom:1px solid #edf2f7;text-align:left;font-size:12px}
+td .num{font-size:12px}
+th{background:#f7f9fb;color:#5a7289;letter-spacing:.02em;font-size:10.5px;font-weight:600;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+tr:hover td{background:#f9fbfd}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:999px;font-size:9.5px;font-weight:700;white-space:nowrap}
+.b-green{background:var(--greenbg);color:var(--green)}
+.b-amber{background:var(--amberbg);color:var(--amber)}
+.b-red{background:var(--redbg);color:var(--red)}
+.b-blue{background:#e4f0fb;color:#1a5f96}
+.b-gray{background:#eef2f5;color:#5a7289}
+.b-g{background:var(--granjero-bg);color:var(--granjero)}
+.b-t{background:var(--troncoso-bg);color:var(--troncoso)}
+.b-makita{background:var(--makita-bg);color:#006fa3}
+.b-orange{background:#fff0e5;color:#b05000}
+
+/* ESTADO PIPELINE SERVICIO */
+.pipeline{display:flex;gap:0;margin-bottom:20px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.pipe-step{flex:1;padding:14px 10px;text-align:center;font-size:11px;font-weight:600;color:var(--muted);background:#f9fbfc;border-right:1px solid var(--line);cursor:default;transition:background .15s}
+.pipe-step:last-child{border-right:none}
+.pipe-step.active{background:#fff;color:var(--navy)}
+.pipe-step .pnum{display:block;font-size:18px;font-weight:900;color:var(--line);margin-bottom:4px}
+.pipe-step.active .pnum{color:var(--makita)}
+.pipe-step.done .pnum{color:var(--green)}
+.pipe-step.done{background:var(--greenbg);color:var(--green)}
+
+/* ORDEN DETAIL */
+.orden-card{border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:10px;background:#fff;transition:box-shadow .15s}
+.orden-card:hover{box-shadow:0 4px 16px #0b2a4610}
+.orden-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.orden-folio{font-size:13px;font-weight:800;color:var(--navy)}
+.orden-cliente{font-size:12px;color:var(--muted);margin-top:2px}
+.orden-tool{font-size:13px;font-weight:600;margin:8px 0 4px}
+.orden-diag{font-size:11.5px;color:var(--muted);line-height:1.5}
+.orden-footer{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);flex-wrap:wrap;gap:8px}
+.orden-monto{font-size:16px;font-weight:900;color:var(--navy)}
+.orden-monto small{font-size:10px;color:var(--muted);font-weight:500;display:block}
+.orden-actions{display:flex;gap:6px;flex-wrap:wrap}
+.btn-advance{background:var(--makita);color:#fff;border:0;padding:8px 14px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer}
+.btn-advance:hover{opacity:.88}
+
+/* TIMELINE */
+.timeline{display:grid;gap:8px;margin-top:12px}
+.tl-item{display:flex;gap:10px;font-size:11px}
+.tl-dot{width:8px;height:8px;border-radius:50%;background:var(--makita);margin-top:3px;flex:0 0 auto}
+.tl-item small{color:var(--muted);display:block}
+
+/* ACTIVITY */
+.activity{display:grid;gap:9px}
+.event{display:flex;gap:10px;font-size:11.5px;line-height:1.45;align-items:flex-start}
+.ef{width:8px;height:8px;border-radius:50%;margin-top:4px;flex:0 0 auto}
+.ef.g{background:var(--granjero)}.ef.t{background:var(--troncoso)}.ef.sys{background:var(--muted)}.ef.sv{background:var(--makita)}
+.event small{color:var(--muted);display:block;font-size:10px}
+
+/* SUC COMPARE */
+.suc-compare{display:grid;grid-template-columns:1fr 1fr;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.suc-col{padding:16px}
+.suc-col.granjero{background:var(--granjero-bg);border-right:1px solid var(--line)}
+.suc-col.troncoso{background:var(--troncoso-bg)}
+.suc-col h4{margin:0 0 12px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.suc-col.granjero h4{color:var(--granjero)}
+.suc-col.troncoso h4{color:var(--troncoso)}
+.suc-stat .sl{font-size:10px;color:var(--muted);margin-bottom:2px}
+.suc-stat .sv{font-size:20px;font-weight:900;letter-spacing:-.03em;margin-bottom:10px}
+.suc-col.granjero .sv{color:var(--granjero)}
+.suc-col.troncoso .sv{color:var(--troncoso)}
+
+/* BAR */
+.bar-row{display:grid;grid-template-columns:110px 1fr 90px;gap:9px;align-items:center;margin:10px 0;font-size:11.5px}
+.bar{height:8px;background:#e8eef4;border-radius:99px;overflow:hidden}
+.bar-g{height:100%;background:var(--granjero);border-radius:99px}
+.bar-t{height:100%;background:var(--troncoso);border-radius:99px}
+.bar-fill{height:100%;background:var(--blue);border-radius:99px}
+
+/* FORM */
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.form-grid .full{grid-column:1/-1}
+.modal-wrap{position:fixed;inset:0;background:#00182b70;display:grid;place-items:center;z-index:80;padding:15px;backdrop-filter:blur(3px)}
+.modal{width:min(740px,96vw);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:22px;box-shadow:0 40px 100px #00152c55}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:16px}
+.modal-head b{font-size:16px;font-weight:700}
+.callout{background:#e8f3fb;border-left:3px solid var(--blue);border-radius:10px;padding:13px 15px;color:#2d5a78;font-size:12px;line-height:1.55;margin-bottom:16px}
+.permissions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.perm{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px}
+.perm b{display:block;color:#122e48;margin-bottom:9px;font-size:13px}
+.perm span{font-size:11px;color:var(--muted);line-height:1.75;display:block}
+.source-card{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);background:#fff;border-radius:11px;padding:13px 15px}
+.toast{position:fixed;right:18px;bottom:18px;background:#0f3554;color:#fff;padding:12px 16px;border-radius:11px;z-index:100;font-size:12px;font-weight:500;box-shadow:0 8px 30px #001a3355}
+
+/* REPORTE SEMANAL */
+.week-bar{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px}
+.week-bar .wk-label{font-size:14px;font-weight:800;color:var(--navy)}
+.week-bar .wk-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.week-nav{display:flex;gap:6px}
+.week-nav button{border:1.5px solid #d0dce8;background:#fff;color:#355870;padding:7px 12px;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer}
+.week-nav button:hover{background:#f5f8fb}
+.week-nav button.wk-active{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+.period-tools{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:13px}
+.period-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.period-tab{border:1.5px solid #d0dce8;background:#fff;color:#526a7d;padding:8px 13px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer}
+.period-tab.active{background:var(--navy);border-color:var(--navy);color:#fff}
+.period-picker{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.period-picker input{border:1.5px solid #d4dde8;border-radius:9px;padding:8px 10px;color:var(--text);background:#fff}
+.period-selected{display:flex;justify-content:space-between;gap:14px;align-items:center;background:#f7fafc;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+.period-selected b{color:var(--navy);font-size:12px}
+.current-tag{display:inline-flex;align-items:center;gap:5px;background:#edf2f6;color:#5c7080;border-radius:999px;padding:4px 8px;font-size:9px;font-weight:700}
+@media(max-width:620px){.period-picker{align-items:stretch}.period-picker input{min-width:0;flex:1}.period-selected{align-items:flex-start;flex-direction:column}}
+
+.report-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.rblock{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;transition:box-shadow .15s}
+.rblock:hover{box-shadow:0 4px 16px #0b2a4610}
+.rblock-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;cursor:pointer}
+.rblock-title{display:flex;align-items:center;gap:10px}
+.rblock-title .r-ico{font-size:20px}
+.rblock-title .r-name{font-size:13px;font-weight:700;color:var(--navy)}
+.rblock-title .r-key{font-size:11px;color:var(--muted);margin-top:2px}
+.rblock-right{display:flex;align-items:center;gap:12px}
+.r-light{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:5px 10px;border-radius:999px}
+.r-light.ok{background:var(--greenbg);color:var(--green)}
+.r-light.warn{background:var(--amberbg);color:var(--amber)}
+.r-light.urgent{background:var(--redbg);color:var(--red)}
+.r-dot{width:8px;height:8px;border-radius:50%}
+.r-light.ok .r-dot{background:var(--green)}
+.r-light.warn .r-dot{background:var(--amber)}
+.r-light.urgent .r-dot{background:var(--red)}
+.r-toggle{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:#f7f9fc;color:var(--muted);font-size:15px;font-weight:700;cursor:pointer;display:grid;place-items:center;transition:all .15s;flex-shrink:0}
+.r-toggle:hover{background:var(--navy);color:#fff}
+.rblock-body{padding:0 18px 18px;border-top:1px solid var(--line);display:none}
+.rblock.open .rblock-body{display:block;padding-top:16px}
+.rblock.open .r-toggle{background:var(--navy);color:#fff}
+.rmini{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px}
+.rmini .rm-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.rmini .rm-v{font-size:18px;font-weight:800;color:var(--navy);margin-top:3px}
+.rline{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f0f4f8;font-size:12px}
+.rline:last-child{border-bottom:0}
+.rline .rl-name{color:var(--text)}
+.rline .rl-val{font-weight:700;color:var(--navy)}
+@media(max-width:760px){.report-grid{grid-template-columns:1fr}}
+.mobile-btn{display:none}
+@media(max-width:1050px){.grid4{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:repeat(2,1fr)}.permissions{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
+@media(max-width:760px){.app{grid-template-columns:1fr}.sidebar{position:fixed;left:-270px;z-index:60;width:252px;transition:left .2s;height:100vh}.sidebar.open{left:0}.mobile-btn{display:inline-flex}.content{padding:14px}.topbar{padding:0 14px}.page-head{flex-direction:column;align-items:flex-start}.form-grid{grid-template-columns:1fr}.suc-compare{grid-template-columns:1fr}.suc-col.granjero{border-right:none;border-bottom:1px solid var(--line)}.pipeline{flex-direction:column}}
+@media(max-width:520px){.grid4,.grid3,.permissions{grid-template-columns:1fr}}
+
+/* v0.8 · Ventas / Crédito / Finanzas */
+.fin-hero{background:linear-gradient(135deg,#0b2a46,#164f76);color:#fff;border:0}
+.fin-hero .label{color:#bcd2e3}.fin-hero .value{color:#fff}
+.kpi-positive{border-left-color:var(--green)}.kpi-negative{border-left-color:var(--red)}
+.money-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.money-cell{background:#f7fafc;border:1px solid var(--line);border-radius:11px;padding:12px}
+.money-cell small{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.money-cell b{display:block;margin-top:5px;font-size:17px;color:var(--navy)}
+.evidence{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700}
+.evidence.ok{color:var(--green)}.evidence.missing{color:var(--amber)}
+.profit-line{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line);gap:10px}
+.profit-line:last-child{border-bottom:0}.profit-line strong{font-size:16px}
+@media(max-width:760px){.money-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.money-grid{grid-template-columns:1fr}}
+
+/* ═══ v0.9.5 · PREFERENCIAS DE INTERFAZ ═══ */
+/* Tema oscuro — para quien captura de noche o prefiere menos brillo */
+[data-theme="dark"]{
+  --navy:#dbe7f2;--ink:#f0f5fa;--blue:#5aa9db;--bg:#0d1620;--card:#152230;--text:#e3ecf4;--muted:#93a5b8;
+  --line:#25384b;--green:#4cc38a;--greenbg:#123227;--amber:#e0a53a;--amberbg:#33280f;
+  --red:#e06a6a;--redbg:#331919;--gray:#1b2a3a;
+  --granjero:#63a9e8;--granjero-bg:#14293f;
+  --troncoso:#b184e0;--troncoso-bg:#25193a;
+  --accent:#e05038;--accent-ink:#c8331f;
+  --makita:#3fb6ea;--makita-bg:#0f2c3d;
+}
+[data-theme="dark"] body{background:var(--bg)}
+[data-theme="dark"] .card,
+[data-theme="dark"] .table-wrap,
+[data-theme="dark"] .topbar,
+[data-theme="dark"] .modal,
+[data-theme="dark"] .perm,
+[data-theme="dark"] .source-card,
+[data-theme="dark"] .week-bar,
+[data-theme="dark"] .period-tools,
+[data-theme="dark"] .rblock{background:var(--card)}
+[data-theme="dark"] th{background:#1b2a3a;color:#a8bccf}
+[data-theme="dark"] th,[data-theme="dark"] td{border-bottom-color:var(--line)}
+[data-theme="dark"] tr:hover td{background:#1b2a3a}
+[data-theme="dark"] .field input,
+[data-theme="dark"] .field select,
+[data-theme="dark"] .field textarea,
+[data-theme="dark"] .period-picker input{background:#0f1c28;border-color:var(--line);color:var(--text)}
+[data-theme="dark"] .secondary,
+[data-theme="dark"] .period-tab,
+[data-theme="dark"] .week-nav button{background:var(--card);border-color:var(--line);color:#b9cbdc}
+[data-theme="dark"] .secondary:hover,
+[data-theme="dark"] .week-nav button:hover{background:#1e2f42}
+[data-theme="dark"] .suc-tab.ag,[data-theme="dark"] .suc-tab.at,[data-theme="dark"] .suc-tab.aa{background:var(--card)}
+[data-theme="dark"] .card h3,[data-theme="dark"] .page-head h2{color:var(--ink)}
+[data-theme="dark"] .money-cell,[data-theme="dark"] .period-selected,[data-theme="dark"] .r-toggle{background:#0f1c28;border-color:var(--line)}
+[data-theme="dark"] .callout,[data-theme="dark"] .tip{background:#132c3d;color:#bcd6e8}
+[data-theme="dark"] .rline{border-bottom-color:var(--line)}
+[data-theme="dark"] .current-tag{background:#1e2f42;color:#9db2c6}
+[data-theme="dark"] .login-card{background:var(--card)}
+[data-theme="dark"] .fin-hero{background:linear-gradient(135deg,#12283c,#1b4763)}
+
+/* Densidad compacta — para ver más renglones sin hacer scroll */
+[data-density="compact"] th,[data-density="compact"] td{padding:6px 10px;font-size:11.5px}
+[data-density="compact"] .card{padding:13px}
+[data-density="compact"] .grid4,[data-density="compact"] .grid3,[data-density="compact"] .grid2{gap:9px}
+[data-density="compact"] .kpi .value{font-size:21px;margin-top:6px}
+[data-density="compact"] .content{padding:16px}
+
+/* Controles de preferencia en la barra superior */
+.pref-btn{border:1px solid var(--line);background:var(--card);color:var(--muted);width:34px;height:34px;border-radius:8px;display:grid;place-items:center;transition:background .12s,color .12s}
+.pref-btn:hover{background:var(--gray);color:var(--text)}
+.pref-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.pref-btn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+[data-theme="dark"] .pref-btn.on{background:var(--blue);color:#0d1620}
+
+/* ═══ v0.9.5 · MODOS DE CAPTURA ═══ */
+.mode-tabs{display:flex;gap:6px;background:var(--gray);border-radius:9px;padding:4px;margin-bottom:15px;flex-wrap:wrap}
+.mode-tab{flex:1;min-width:118px;border:0;background:transparent;color:var(--muted);padding:9px 11px;border-radius:6px;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .12s,color .12s}
+.mode-tab.active{background:var(--card);color:var(--navy);box-shadow:0 1px 3px #0000001f}
+.mode-tab svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.mode-body{display:none}
+.mode-body.active{display:block}
+.paste-area{width:100%;min-height:120px;font-family:var(--mono);font-size:11.5px;line-height:1.5;padding:11px 13px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);resize:vertical}
+.paste-area:focus{outline:none;border-color:var(--blue)}
+
+/* ═══ v0.9.5 · RESPUESTA EN LENGUAJE NATURAL ═══ */
+.plain-answer{background:linear-gradient(135deg,#0b2540,#17466b);color:#fff;border:0;border-radius:12px;padding:22px 24px;margin-bottom:14px}
+[data-theme="dark"] .plain-answer{background:linear-gradient(135deg,#12283c,#1b4763)}
+.plain-answer .pa-q{font-size:11px;color:#a9c6de;font-weight:600;margin-bottom:9px}
+.plain-answer .pa-line{font-size:17px;line-height:1.7;font-weight:500}
+.plain-answer .pa-line b{font-family:var(--mono);font-weight:600}
+.plain-answer .pa-up{color:#7ee2b0}
+.plain-answer .pa-down{color:#ffb0a8}
+.plain-answer .pa-note{font-size:11.5px;color:#a9c6de;margin-top:13px;line-height:1.6}
+@media(max-width:620px){.plain-answer{padding:17px 16px}.plain-answer .pa-line{font-size:15px}}
+
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+
+<section id="login" class="login">
+<div class="login-card">
+  <div class="brand"><div class="logo">BT</div> Border Tools · Control</div>
+  <h1>Centro de operaciones</h1>
+  <p class="lead">Cada área captura su información aquí. El Director ve el resumen de ambas sucursales y el Centro de Servicio Autorizado Makita en tiempo real.</p>
+  <div class="field"><label>Entrar como</label>
+    <select id="roleSelect">
+      <option value="direccion">Director</option>
+      <option value="ventas_g">Ventas · Granjero</option>
+      <option value="ventas_t">Ventas · Troncoso</option>
+      <option value="finanzas">Finanzas / Administración</option>
+      <option value="facturacion">Usuario Facturación</option>
+      <option value="ecommerce">Ecommerce</option>
+      <option value="servicio">Centro de Servicio</option>
+    </select>
+  </div>
+  <div class="field"><label>Contraseña</label><input type="password" value="demo123"></div>
+  <button class="primary" onclick="enter()">Entrar al sistema</button>
+  <div class="tip"><b>Demo v0.9.5.</b> Datos de ejemplo, todo se guarda en el navegador. El corte diario se puede capturar de tres formas: subiendo el PDF de SICAR, pegando los totales o escribiéndolos a mano. Arriba a la derecha puedes cambiar el tema y la densidad de las tablas.</div>
+</div>
+</section>
+
+<section id="app" class="app hidden">
+<aside id="sidebar" class="sidebar">
+  <div class="brand"><div class="logo">BT</div> Border Tools</div>
+  <div class="nav" id="nav">
+    <div class="section">General</div>
+    <button class="active" data-page="home"><span class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></span> Resumen</button>
+    <div class="section">Captura por área</div>
+    <button data-page="ventas" data-area="ventas"><span class="ico"><svg viewBox="0 0 24 24"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2z"></path><line x1="9" y1="7" x2="15" y2="7"></line><line x1="9" y1="11" x2="15" y2="11"></line></svg></span> Ventas</button>
+    <button data-page="facturacion" data-area="facturacion"><span class="ico"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line></svg></span> Facturación</button>
+    <button data-page="inventario" data-area="inventario"><span class="ico"><svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"></path><path d="M3 8v8l9 5 9-5V8"></path><path d="M12 13v8"></path></svg></span> Inventario</button>
+    <button data-page="ml" data-area="ecommerce"><span class="ico"><svg viewBox="0 0 24 24"><path d="M6 8h12l-1 12H7L6 8z"></path><path d="M9 8V6a3 3 0 0 1 6 0v2"></path></svg></span> Mercado Libre</button>
+    <button data-page="oportunidades" data-area="oportunidades"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg></span> Oportunidades</button>
+    <div class="section">Centro de Servicio <span class="makita-badge">MAKITA</span></div>
+    <button data-page="servicio" data-area="servicio"><span class="ico"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L2 19l3 3 7.3-7.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2 2.6-2.6z"></path></svg></span> Órdenes</button>
+    <button data-page="servicio_stats" data-area="servicio"><span class="ico"><svg viewBox="0 0 24 24"><line x1="4" y1="20" x2="20" y2="20"></line><rect x="6" y="12" width="3" height="8"></rect><rect x="11" y="7" width="3" height="13"></rect><rect x="16" y="3" width="3" height="17"></rect></svg></span> Estadísticas</button>
+    <div class="section">Administración</div>
+    <button data-page="finanzas" data-area="finanzas"><span class="ico"><svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline></svg></span> Finanzas</button>
+    <button data-page="credito" data-area="clientes"><span class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg></span> Crédito / Cobranza</button>
+    <button data-page="nomina" data-area="nomina"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"></circle><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"></path><circle cx="17" cy="9" r="2.5"></circle><path d="M15 14c2.8.3 5 2.6 5 6"></path></svg></span> Nómina</button>
+    <button data-page="comisiones" data-area="comisiones"><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 2l2.6 5.9L21 8.8l-4.5 4.2L17.6 21 12 17.6 6.4 21l1.1-8-4.5-4.2 6.4-.9z"></path></svg></span> Comisiones</button>
+    <button data-page="compras" data-area="compras"><span class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="12" height="9"></rect><path d="M14 10h4l3 3v3h-7z"></path><circle cx="6.5" cy="18.5" r="1.8"></circle><circle cx="17.5" cy="18.5" r="1.8"></circle></svg></span> Compras</button>
+    <button data-page="clientes" data-area="clientes"><span class="ico"><svg viewBox="0 0 24 24"><path d="M2 12l5-5 4 3 3-3 5 5-3 3-2-2-3 3-4-3z"></path><path d="M9 17l2 2 2-2"></path></svg></span> Clientes B2B</button>
+    <div class="section">Sucursales</div>
+    <button data-page="sucursales" data-area="ventas"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"></path><path d="M4 9v11h16V9"></path><path d="M9 20v-6h6v6"></path></svg></span> Comparativo</button>
+    <div class="section">Control</div>
+    <button data-page="excel"><span class="ico"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.3 6.3L3 21"></path><path d="M3 12a9 9 0 0 1 15.3-6.3L21 3"></path><polyline points="21 15 21 21 15 21"></polyline><polyline points="3 9 3 3 9 3"></polyline></svg></span> Excel / Importar</button>
+    <button data-page="permisos" data-direccion><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 13a7.97 7.97 0 0 0 0-2l2-1.5-2-3.4-2.4 1a8 8 0 0 0-1.7-1L15 3h-6l-.3 2.6a8 8 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 11a7.97 7.97 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 1.7 1L9 21h6l.3-2.6a8 8 0 0 0 1.7-1l2.4 1 2-3.4z"></path></svg></span> Usuarios</button>
+  </div>
+  <div class="sidebar-footer">Border Tools · Jz. Chih. · v0.9.5 demo</div>
+</aside>
+
+<main class="main">
+<header class="topbar">
+  <div style="display:flex;align-items:center;gap:10px">
+    <button class="secondary mobile-btn" onclick="toggleMenu()">☰</button>
+    <span class="demo-badge">DEMO · DATOS DE EJEMPLO</span>
+  </div>
+  <div class="userbox">
+    <button class="pref-btn" id="densBtn" onclick="toggleDensidad()" title="Cambiar densidad de las tablas">
+      <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+    </button>
+    <button class="pref-btn" id="themeBtn" onclick="toggleTema()" title="Cambiar entre tema claro y oscuro">
+      <svg id="themeIcon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+    </button>
+    <div class="user-meta" style="text-align:right">
+      <b id="roleName">Director</b>
+      <small>Border Tools · Jz.</small>
+    </div>
+    <div class="avatar" id="avatarEl">D</div>
+    <button class="secondary" onclick="cerrarSesion()" style="font-size:11px;padding:7px 12px;color:var(--red);border-color:var(--red)">Cerrar sesión</button>
+  </div>
+</header>
+<div id="view" class="content"></div>
+</main>
+</section>
+
+<div id="modal" class="modal-wrap hidden"></div>
+<div id="toast" class="toast hidden"></div>
+
+<script>
+if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}
+const ROLE_NAMES={direccion:'Director',ventas_g:'Ventas · Granjero',ventas_t:'Ventas · Troncoso',finanzas:'Finanzas / Administración',facturacion:'Usuario Facturación',ecommerce:'Ecommerce',servicio:'Centro de Servicio'};
+const AVATARS={direccion:'D',ventas_g:'G',ventas_t:'T',finanzas:'F',facturacion:'F',ecommerce:'M',servicio:'S'};
+const PERMS={
+  direccion:['ventas','facturacion','inventario','ecommerce','oportunidades','servicio','finanzas','nomina','comisiones','compras','clientes','excel','permisos'],
+  ventas_g:['ventas','inventario','clientes','excel'],
+  ventas_t:['ventas','inventario','clientes','excel'],
+  finanzas:['ventas','facturacion','finanzas','nomina','comisiones','compras','clientes','excel'],
+  facturacion:['facturacion','clientes','excel'],
+  ecommerce:['ecommerce','inventario','oportunidades','excel'],
+  servicio:['servicio','inventario','excel']
+};
+
+// ESTADOS DEL PIPELINE:
+// Recibida → Diagnóstico → Cotizada → Autorizada → En reparación → Lista → Entregada
+// También puede: Rechazada (cliente no autorizó)
+const ESTADOS=['Recibida','Diagnóstico','Cotizada','Autorizada','En reparación','Lista','Entregada'];
+
+const seed={
+  ventas:[
+    {fecha:'2026-08-28',sucursal:'Granjero',responsable:'Equipo Granjero',efectivo:1375.03,transferencia:6914.10,tarjeta:5252.27,manoObra:150,credito:8414.64,creditoAsignado:0,totalVentaSicar:21956.04,total:13541.40,estado:'Capturado',sicarArchivo:'Reporte 28-08-26.pdf',sicarData:''},
+    {fecha:'2026-08-27',sucursal:'Troncoso',responsable:'Equipo Troncoso',efectivo:8240,transferencia:11950,tarjeta:6875,manoObra:0,credito:4200,creditoAsignado:0,totalVentaSicar:30065,total:27065,estado:'Capturado',sicarArchivo:'SICAR_27-08_Troncoso.pdf',sicarData:''},
+    {fecha:'2026-08-26',sucursal:'Granjero',responsable:'Equipo Granjero',efectivo:9750,transferencia:15600,tarjeta:8400,manoObra:850,credito:3500,creditoAsignado:3500,totalVentaSicar:37250,total:33750,estado:'Capturado',sicarArchivo:'SICAR_26-08_Granjero.pdf',sicarData:''},
+    {fecha:'2026-08-25',sucursal:'Troncoso',responsable:'Equipo Troncoso',efectivo:6650,transferencia:9100,tarjeta:4550,manoObra:320,credito:0,creditoAsignado:0,totalVentaSicar:20300,total:20300,estado:'Capturado',sicarArchivo:'',sicarData:''},
+  ],
+  facturacion:[
+    {folio:'F-1842',cliente:'Constructora Norte SA',rfc:'CNS260801MX1',fecha:'2026-08-26',total:28400,sucursal:'Granjero',estado:'Pendiente'},
+    {folio:'F-1841',cliente:'Taller Industrial López',rfc:'TIL980312JZ0',fecha:'2026-08-25',total:12800,sucursal:'Troncoso',estado:'Pagada'},
+    {folio:'F-1840',cliente:'Maquiladora Frontera',rfc:'MFR050620CH3',fecha:'2026-08-24',total:42600,sucursal:'Granjero',estado:'Pagada'},
+  ],
+  inventario:[
+    {tipo:'Entrada',producto:'DeWalt DCF900P1',sku:'DCF900P1',cantidad:4,sucursal:'Granjero',responsable:'Almacén',fecha:'2026-08-26'},
+    {tipo:'Salida',producto:'Makita MP100DZ',sku:'MP100DZ',cantidad:1,sucursal:'Troncoso',responsable:'Ventas',fecha:'2026-08-26'},
+    {tipo:'Entrada',producto:'Careta AXtech Shadow',sku:'AXT-SHADOW',cantidad:10,sucursal:'Granjero',responsable:'Almacén',fecha:'2026-08-25'},
+    {tipo:'Salida (Refacción)',producto:'Escobillas HR2670',sku:'REFAC-ESC-HR2670',cantidad:1,sucursal:'Granjero',responsable:'Servicio',fecha:'2026-08-24'},
+  ],
+  ml:[
+    {producto:'Makita DUB185Z · Sopladora 18V',precio:2715,mercado:'$2,400–$2,600',stock:17,sucursal:'Ambas',estado:'Competitivo'},
+    {producto:'Esmeriladora 9557HPG · Makita',precio:2305,mercado:'$2,100–$2,350',stock:50,sucursal:'Ambas',estado:'Competitivo'},
+    {producto:'Cortadora 2414NB · Makita 14"',precio:5459,mercado:'$5,200–$5,800',stock:30,sucursal:'Granjero',estado:'Competitivo'},
+    {producto:'Soldadora VOL-MIG160LED',precio:5805,mercado:'$5,400–$6,000',stock:5,sucursal:'Troncoso',estado:'Revisar'},
+    {producto:'DeWalt DCK240C2 · Combo',precio:null,mercado:'$4,700–$5,100',stock:0,sucursal:'—',estado:'Sin stock'},
+  ],
+  oportunidades:[
+    {tipo:'Prospecto B2B',nombre:'Constructora Norte SA',contacto:'Ing. Ramírez',monto:85000,sucursal:'Granjero',estado:'Cotización'},
+    {tipo:'Compra USA',nombre:'Makita XGT replenishment',contacto:'Dirección',monto:65000,sucursal:'Ambas',estado:'Aprobado'},
+  ],
+  servicio:[
+    {
+      folio:'SR-1026',cliente:'Maquiladora Frontera',tel:'656-120-4500',
+      herramienta:'Rotomartillo Makita HR2670',modelo:'HR2670',serie:'HR2670-MX00328',
+      sucursal:'Granjero',falla:'No percute, solo rota. Posible falla en mecanismo de percusión.',
+      entrada:'2026-08-26',estado:'Diagnóstico',
+      diagnostico:'',cotizacion:0,autorizado:false,
+      entrega:'—',cobro:0,cobrado:false,
+      garantia:false,notas:'',
+      historial:[{texto:'Recibida en sucursal Granjero',ts:'2026-08-26 09:15'}]
+    },
+    {
+      folio:'SR-1025',cliente:'Taller López',tel:'656-788-3310',
+      herramienta:'Esmeriladora Makita GA7020',modelo:'GA7020',serie:'GA7020-MX00112',
+      sucursal:'Granjero',falla:'Chispas excesivas del motor. No calienta bien.',
+      entrada:'2026-08-24',estado:'Autorizada',
+      diagnostico:'Escobillas desgastadas y armadura con desgaste moderado. Se requiere cambio de escobillas y limpieza general.',
+      cotizacion:850,autorizado:true,
+      entrega:'—',cobro:0,cobrado:false,
+      garantia:false,notas:'Cliente autorizó por WhatsApp el 25/ago.',
+      historial:[
+        {texto:'Recibida en sucursal Granjero',ts:'2026-08-24 10:30'},
+        {texto:'Diagnóstico completado: escobillas y armadura',ts:'2026-08-24 14:00'},
+        {texto:'Cotización $850 enviada al cliente',ts:'2026-08-25 09:00'},
+        {texto:'Cliente autorizó la reparación',ts:'2026-08-25 11:30'},
+      ]
+    },
+    {
+      folio:'SR-1024',cliente:'Juan Pérez',tel:'656-312-7890',
+      herramienta:'Rotomartillo Makita HR2670',modelo:'HR2670',serie:'HR2670-MX00291',
+      sucursal:'Granjero',falla:'No enciende. Cayó de una altura aproximada de 2m.',
+      entrada:'2026-08-20',estado:'En reparación',
+      diagnostico:'Interruptor roto y cable interno cortado. Refacciones disponibles en almacén.',
+      cotizacion:480,autorizado:true,
+      entrega:'—',cobro:0,cobrado:false,
+      garantia:false,notas:'',
+      historial:[
+        {texto:'Recibida en sucursal Granjero',ts:'2026-08-20 11:00'},
+        {texto:'Diagnóstico: interruptor y cable interno',ts:'2026-08-20 14:30'},
+        {texto:'Cotización $480 enviada',ts:'2026-08-21 09:00'},
+        {texto:'Cliente autorizó',ts:'2026-08-21 12:00'},
+        {texto:'Inició reparación',ts:'2026-08-23 08:30'},
+      ]
+    },
+    {
+      folio:'SR-1023',cliente:'Constructora Delta',tel:'656-445-2211',
+      herramienta:'Esmeriladora DeWalt DWE490',modelo:'DWE490',serie:'DWE490-20224',
+      sucursal:'Troncoso',falla:'Se apaga al poco tiempo de uso. Probable sobrecalentamiento.',
+      entrada:'2026-08-18',estado:'Lista',
+      diagnostico:'Sistema de ventilación obstruido con polvo de concreto. Limpieza profunda y lubricación.',
+      cotizacion:320,autorizado:true,
+      entrega:'—',cobro:320,cobrado:false,
+      garantia:false,notas:'Lista para entregar. Avisado por WhatsApp.',
+      historial:[
+        {texto:'Recibida en sucursal Troncoso',ts:'2026-08-18 10:00'},
+        {texto:'Diagnóstico: ventilación obstruida',ts:'2026-08-19 09:00'},
+        {texto:'Cotización $320 aprobada',ts:'2026-08-19 14:00'},
+        {texto:'Reparación completada',ts:'2026-08-22 11:00'},
+        {texto:'Marcada como Lista — avisado al cliente',ts:'2026-08-22 11:30'},
+      ]
+    },
+    {
+      folio:'SR-1022',cliente:'Cliente particular',tel:'656-901-XXXX',
+      herramienta:'Taladro Makita DHP490',modelo:'DHP490',serie:'DHP490-MX01102',
+      sucursal:'Granjero',falla:'No carga la batería.',
+      entrada:'2026-08-14',estado:'Entregada',
+      diagnostico:'Batería dañada internamente. No es reparable. Se informó al cliente.',
+      cotizacion:150,autorizado:true,
+      entrega:'2026-08-17',cobro:150,cobrado:true,
+      garantia:false,notas:'Se cobró diagnóstico. Cliente optó por comprar batería nueva.',
+      historial:[
+        {texto:'Recibida',ts:'2026-08-14 09:00'},
+        {texto:'Diagnóstico: batería no reparable',ts:'2026-08-14 11:00'},
+        {texto:'Cobro de diagnóstico $150',ts:'2026-08-14 12:00'},
+        {texto:'Entregada al cliente',ts:'2026-08-17 10:30'},
+      ]
+    },
+    {
+      folio:'SR-1021',cliente:'Maquilas TJ',tel:'664-220-8800',
+      herramienta:'Llave de Impacto Makita TW001GM201',modelo:'TW001GM201',serie:'TW001-MX00044',
+      sucursal:'Troncoso',falla:'Reduce torque. Solo da el 40% de la potencia.',
+      entrada:'2026-08-10',estado:'Rechazada',
+      diagnostico:'Mecanismo de impacto con desgaste severo. Requiere cambio de conjunto impactador. Costo elevado.',
+      cotizacion:3200,autorizado:false,
+      entrega:'2026-08-15',cobro:200,cobrado:true,
+      garantia:false,notas:'Cliente rechazó cotización por costo. Se cobró diagnóstico $200 y se regresó la herramienta.',
+      historial:[
+        {texto:'Recibida en Troncoso',ts:'2026-08-10 14:00'},
+        {texto:'Diagnóstico: desgaste severo conjunto impactador',ts:'2026-08-11 10:00'},
+        {texto:'Cotización $3,200 enviada',ts:'2026-08-12 09:00'},
+        {texto:'Cliente rechazó — se cobró diagnóstico $200',ts:'2026-08-15 09:30'},
+        {texto:'Herramienta devuelta al cliente',ts:'2026-08-15 10:00'},
+      ]
+    },
+  ],
+  egresos:[
+    {fecha:'2026-08-26',concepto:'Compra mercancía Makita',categoria:'Mercancía',proveedor:'Makita México',monto:48200,sucursal:'Granjero'},
+    {fecha:'2026-08-25',concepto:'Refacciones centro de servicio',categoria:'Refacciones',proveedor:'Makita México',monto:6800,sucursal:'Granjero'},
+    {fecha:'2026-08-24',concepto:'Renta local Troncoso',categoria:'Gastos fijos',proveedor:'Arrendadora',monto:18000,sucursal:'Troncoso'},
+    {fecha:'2026-08-23',concepto:'Luz y agua (ambas)',categoria:'Gastos fijos',proveedor:'CFE / JMAS',monto:9400,sucursal:'Ambas'},
+    {fecha:'2026-08-22',concepto:'Compra soldadoras VOLT',categoria:'Mercancía',proveedor:'Distribuidor VOLT',monto:22500,sucursal:'Troncoso'},
+  ],
+  nomina:[
+    {id:'N-1',nombre:'Equipo Mostrador 1',rol:'Ventas mostrador',sucursal:'Granjero',tipo:'Quincenal',sueldo:6500,ultimoPago:'2026-08-15',estado:'Pagado'},
+    {id:'N-2',nombre:'Equipo Mostrador 2',rol:'Ventas mostrador',sucursal:'Troncoso',tipo:'Quincenal',sueldo:6500,ultimoPago:'2026-08-15',estado:'Pagado'},
+    {id:'N-3',nombre:'Equipo Almacén',rol:'Almacén y surtido',sucursal:'Granjero',tipo:'Quincenal',sueldo:5800,ultimoPago:'2026-08-15',estado:'Pagado'},
+    {id:'N-4',nombre:'Equipo Servicio',rol:'Técnico centro de servicio',sucursal:'Granjero',tipo:'Quincenal',sueldo:8200,ultimoPago:'2026-08-15',estado:'Pagado'},
+    {id:'N-5',nombre:'Equipo Facturación',rol:'Facturación y cobranza',sucursal:'Troncoso',tipo:'Quincenal',sueldo:7000,ultimoPago:'2026-08-15',estado:'Pagado'},
+  ],
+  comisiones:[
+    {id:'CM-1',nombre:'Alejandro',sucursal:'Granjero',tipo:'Venta mostrador',periodo:'Semana del 25 al 31 ago',monto:6250,estado:'Pagada',fechaPago:'2026-08-31'},
+    {id:'CM-2',nombre:'Daniel',sucursal:'Troncoso',tipo:'Mano de obra',periodo:'Semana del 25 al 31 ago',monto:12852,estado:'Pendiente',fechaPago:'—'},
+    {id:'CM-3',nombre:'Pedro',sucursal:'Granjero',tipo:'Venta mostrador',periodo:'Semana del 25 al 31 ago',monto:15000,estado:'Pendiente',fechaPago:'—'},
+  ],
+  compras:[
+    {folio:'OC-208',proveedor:'Makita México',fecha:'2026-08-24',monto:48200,sucursal:'Granjero',estado:'En tránsito',entrega:'2026-08-30'},
+    {folio:'OC-207',proveedor:'Distribuidor VOLT',fecha:'2026-08-22',monto:22500,sucursal:'Troncoso',estado:'Recibida',entrega:'2026-08-25'},
+    {folio:'OC-206',proveedor:'DeWalt / Stanley',fecha:'2026-08-20',monto:31800,sucursal:'Granjero',estado:'Recibida',entrega:'2026-08-23'},
+  ],
+  clientesB2B:[
+    {nombre:'Constructora Norte SA',contacto:'Ing. Ramírez',sucursal:'Granjero',compras:342000,credito:50000,saldo:28400},
+    {nombre:'Maquiladora Frontera',contacto:'Lic. Torres',sucursal:'Granjero',compras:186000,credito:80000,saldo:0},
+    {nombre:'Taller Industrial López',contacto:'Sr. López',sucursal:'Troncoso',compras:94500,credito:20000,saldo:0},
+  ],
+  creditos:[
+    {id:'CR-1001',cliente:'Constructora Norte SA',fecha:'2026-08-20',sucursal:'Granjero',monto:28400,saldo:16400,estado:'Pendiente'},
+    {id:'CR-1002',cliente:'Taller Industrial López',fecha:'2026-07-29',sucursal:'Troncoso',monto:12000,saldo:0,estado:'Pagado'},
+  ],
+  cobranzas:[
+    {fecha:'2026-08-27',creditoId:'CR-1001',cliente:'Constructora Norte SA',sucursal:'Granjero',metodo:'Transferencia',monto:12000},
+    {fecha:'2026-08-15',creditoId:'CR-1002',cliente:'Taller Industrial López',sucursal:'Troncoso',metodo:'Cheque',monto:12000},
+    {fecha:'2026-08-27',creditoId:null,cliente:'Cliente de mostrador',sucursal:'Troncoso',metodo:'Efectivo',monto:1200},
+    {fecha:'2026-08-26',creditoId:null,cliente:'Cliente de mostrador',sucursal:'Granjero',metodo:'Efectivo',monto:2500},
+  ],
+  stockMin:[
+    {producto:'Escobillas HR2670',sku:'REFAC-ESC-HR2670',actual:2,minimo:5,sucursal:'Granjero'},
+    {producto:'Careta AXtech Shadow',sku:'AXT-SHADOW',actual:3,minimo:6,sucursal:'Troncoso'},
+  ],
+  activity:[
+    {texto:'SR-1026 recibida: Rotomartillo HR2670 · Maquiladora Frontera',suc:'sv',ts:'Hoy 09:15'},
+    {texto:'Equipo Granjero registró venta por $18,450',suc:'g',ts:'Hoy 08:30'},
+    {texto:'Ecommerce publicó 15 productos en Mercado Libre',suc:'sys',ts:'Ayer 17:00'},
+    {texto:'SR-1023 lista para entregar · Constructora Delta',suc:'sv',ts:'Ayer 11:30'},
+    {texto:'Facturación agregó F-1842 · Constructora Norte',suc:'g',ts:'Ayer 12:05'},
+  ]
+};
+
+let S=JSON.parse(localStorage.getItem('bt_demo_v095')||'null')||seed;
+// Completa módulos nuevos si el navegador ya tenía guardada una versión anterior del demo.
+['ventas','facturacion','inventario','ml','oportunidades','servicio','egresos','nomina','comisiones','compras','clientesB2B','creditos','cobranzas','stockMin','activity'].forEach(k=>{
+  if(!Array.isArray(S[k])) S[k]=JSON.parse(JSON.stringify(seed[k]||[]));
+});
+let role='direccion';
+let currentSuc='all';
+let reportMode='week';
+let reportAnchor='';
+let reportCustomStart='';
+let reportCustomEnd='';
+
+function save(){localStorage.setItem('bt_demo_v095',JSON.stringify(S))}
+function money(n){if(n===null||n===undefined||Number.isNaN(Number(n)))return '—';return `<span class="num">${new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0}).format(Number(n))}</span>`}
+function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.remove('hidden');setTimeout(()=>e.classList.add('hidden'),2200)}
+function allowed(a){return PERMS[role]&&PERMS[role].includes(a)}
+function enter(){
+  role=document.getElementById('roleSelect').value;
+  document.getElementById('roleName').textContent=ROLE_NAMES[role];
+  document.getElementById('avatarEl').textContent=AVATARS[role];
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  if(role==='ventas_g')currentSuc='granjero'; else if(role==='ventas_t')currentSuc='troncoso'; else currentSuc='all';
+  applyPerms();render('home');
+}
+function applyPerms(){
+  document.querySelectorAll('[data-area]').forEach(b=>b.style.display=allowed(b.dataset.area)?'flex':'none');
+  document.querySelectorAll('[data-direccion]').forEach(b=>b.style.display=role==='direccion'?'flex':'none');
+}
+function toggleMenu(){document.getElementById('sidebar').classList.toggle('open')}
+
+// ══ EXPORTAR A EXCEL (CSV) ══
+// El Excel no desaparece: sigue sirviendo para respaldo y análisis externo.
+// Se usa punto y coma y BOM para que Excel en español lo abra en columnas sin pelear.
+function exportarCSV(nombre,columnas,filas){
+  if(!filas.length){toast('No hay renglones que exportar en este período');return}
+  const esc=v=>{let s=(v===null||v===undefined)?'':String(v);return /[";\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+  let csv=columnas.join(';')+'\n'+filas.map(f=>f.map(esc).join(';')).join('\n');
+  let blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  if(!window.URL||!URL.createObjectURL){toast('Este navegador no permite descargar el archivo');return}
+  let a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`${nombre}_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  toast('Archivo descargado — ábrelo en Excel ✓');
+}
+function exportarCortes(){
+  let rows=filterSuc(S.ventas).filter(x=>x.origen!=='servicio');
+  exportarCSV('BT_cortes_diarios',
+    ['Fecha','Sucursal','Responsable','Efectivo','Transferencia','Tarjeta','Abono efectivo','Venta SICAR','Credito','Mano de obra','Dinero recibido','Evidencia SICAR','Observacion'],
+    rows.map(x=>[x.fecha,x.sucursal,x.responsable,(+x.efectivo||0).toFixed(2),(+x.transferencia||0).toFixed(2),(+x.tarjeta||0).toFixed(2),abonosEfectivoCorte(x).toFixed(2),ventaGenerada(x).toFixed(2),ventaCredito(x).toFixed(2),ventaManoObra(x).toFixed(2),ventaRecibido(x).toFixed(2),x.sicarArchivo||'SIN PDF',x.observacion||'']));
+}
+function exportarEgresos(){
+  let p=getReportPeriod(),rows=filterPeriod(S.egresos,'fecha',p);
+  exportarCSV('BT_egresos',['Fecha','Concepto','Categoria','Proveedor','Sucursal','Monto'],
+    rows.map(x=>[x.fecha,x.concepto,x.categoria,x.proveedor,x.sucursal,(+x.monto||0).toFixed(2)]));
+}
+function exportarCobranza(){
+  let p=getReportPeriod(),rows=filterPeriod(S.cobranzas||[],'fecha',p);
+  exportarCSV('BT_cobranza',['Fecha','Cliente','Credito','Sucursal','Metodo','Monto'],
+    rows.map(x=>[x.fecha,x.cliente,x.creditoId||'',x.sucursal,x.metodo,(+x.monto||0).toFixed(2)]));
+}
+
+// ══ PREFERENCIAS DE INTERFAZ ══
+// Se guardan aparte de los datos del negocio: son de la persona, no de la empresa.
+let PREFS=JSON.parse(localStorage.getItem('bt_prefs')||'null')||{tema:'claro',densidad:'normal'};
+function savePrefs(){localStorage.setItem('bt_prefs',JSON.stringify(PREFS))}
+function aplicarPrefs(){
+  document.documentElement.setAttribute('data-theme',PREFS.tema==='oscuro'?'dark':'light');
+  document.documentElement.setAttribute('data-density',PREFS.densidad==='compacta'?'compact':'normal');
+  let tb=document.getElementById('themeBtn'),db=document.getElementById('densBtn'),ti=document.getElementById('themeIcon');
+  if(tb)tb.classList.toggle('on',PREFS.tema==='oscuro');
+  if(db)db.classList.toggle('on',PREFS.densidad==='compacta');
+  if(ti)ti.innerHTML=PREFS.tema==='oscuro'
+    ?'<circle cx="12" cy="12" r="4"></circle><line x1="12" y1="2" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="22"></line><line x1="2" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="22" y2="12"></line><line x1="4.9" y1="4.9" x2="7" y2="7"></line><line x1="17" y1="17" x2="19.1" y2="19.1"></line><line x1="4.9" y1="19.1" x2="7" y2="17"></line><line x1="17" y1="7" x2="19.1" y2="4.9"></line>'
+    :'<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path>';
+}
+function toggleTema(){PREFS.tema=PREFS.tema==='oscuro'?'claro':'oscuro';savePrefs();aplicarPrefs();toast(PREFS.tema==='oscuro'?'Tema oscuro activado':'Tema claro activado')}
+function toggleDensidad(){PREFS.densidad=PREFS.densidad==='compacta'?'normal':'compacta';savePrefs();aplicarPrefs();toast(PREFS.densidad==='compacta'?'Tablas compactas — más renglones a la vista':'Tablas normales')}
+aplicarPrefs();
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#nav button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');render(b.dataset.page);
+  document.getElementById('sidebar').classList.remove('open');
+});
+function current(){let b=document.querySelector('#nav button.active');return b?b.dataset.page:'home'}
+function go(page){let b=[...document.querySelectorAll('#nav button')].find(x=>x.dataset.page===page);if(b)b.click();else render(page)}
+
+function head(t,s,extra=''){return `<div class="page-head"><div><h2>${t}</h2><p>${s}</p></div><div class="page-actions">${extra}</div></div>`}
+function kpi(l,v,s,cls=''){return `<div class="card kpi ${cls}"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`}
+
+function statusBadge(s){
+  const map={
+    'Pagada':'b-green','Competitivo':'b-green','Aprobado':'b-green','Autorizada':'b-green',
+    'Pendiente':'b-amber','Revisar':'b-amber','Cotización':'b-amber','Por autorizar':'b-amber','Cotizada':'b-amber','Diagnóstico':'b-amber',
+    'Sin stock':'b-red','Rechazada':'b-red',
+    'Recibida':'b-blue','En reparación':'b-blue',
+    'Lista':'b-orange','Primer contacto':'b-gray',
+    'Entregada':'b-gray','Cobrado':'b-green','Pagado':'b-green','En tránsito':'b-amber','Activo':'b-green','Vencida':'b-red',
+  };
+  return `<span class="badge ${map[s]||'b-gray'}">${s}</span>`;
+}
+function sucBadge(s){
+  if(!s||s==='—')return '';
+  if(s==='Granjero')return `<span class="badge b-g">● Granjero</span>`;
+  if(s==='Troncoso')return `<span class="badge b-t">● Troncoso</span>`;
+  return `<span class="badge b-blue">${s}</span>`;
+}
+function denied(){return `${head('Acceso restringido','Este usuario no tiene permiso para ver esta sección.')}<div class="card">El Director puede configurar qué ve y qué modifica cada área.</div>`}
+
+function sucTabs(){
+  return `<div class="suc-tabs">
+    <button class="suc-tab ${currentSuc==='all'?'aa':''}" onclick="setSuc('all')"><span class="da"></span> Ambas</button>
+    <button class="suc-tab ${currentSuc==='granjero'?'ag':''}" onclick="setSuc('granjero')"><span class="dg"></span> Granjero</button>
+    <button class="suc-tab ${currentSuc==='troncoso'?'at':''}" onclick="setSuc('troncoso')"><span class="dt"></span> Troncoso</button>
+  </div>`;
+}
+function setSuc(s){currentSuc=s;render(current())}
+function filterSuc(arr,key='sucursal'){
+  if(currentSuc==='all')return arr;
+  return arr.filter(x=>{let v=(x[key]||'').toLowerCase();return v===currentSuc||v==='ambas'||v==='online';});
+}
+
+function abonosEfectivoCorte(x){return (S.cobranzas||[]).filter(c=>c.fecha===x.fecha&&c.sucursal===x.sucursal&&c.metodo==='Efectivo').reduce((a,b)=>a+(+b.monto||0),0)}
+function ventaVentaDelDia(x){return (+x.efectivo||0)+(+x.transferencia||0)+(+x.tarjeta||0)}
+function ventaRecibido(x){return ventaVentaDelDia(x)+abonosEfectivoCorte(x)}
+function ventaCobroActual(x){return (+x.efectivo||0)+(+x.transferencia||0)+(+x.tarjeta||0)}
+function ventaGenerada(x){return +(x.totalVentaSicar!==undefined?x.totalVentaSicar:(x.total||0))||0}
+function ventaCredito(x){return +x.credito||0}
+function ventaCreditoSinAsignar(x){return Math.max(0,(+x.credito||0)-(+x.creditoAsignado||0))}
+function creditoSinAsignarTotal(){return (S.ventas||[]).reduce((a,x)=>a+(x.origen!=='servicio'?ventaCreditoSinAsignar(x):0),0)}
+function ventaManoObra(x){return +x.manoObra||0}
+function cobranzaPeriodo(p,suc='all'){return (S.cobranzas||[]).filter(x=>inReportRange(x.fecha,p)&&(suc==='all'||(x.sucursal||'').toLowerCase()===suc)).reduce((a,b)=>a+(+b.monto||0),0)}
+function openSicar(i){let x=S.ventas[i];if(x&&x.sicarData){let w=window.open();w.document.write(`<iframe src="${x.sicarData}" style="border:0;width:100%;height:100vh"></iframe>`)}else toast('Este registro solo conserva el nombre del archivo en el demo.')}
+function ventaGeneradaFn(x){return ventaGenerada(x)}
+
+// ══ HOME — REPORTE SEMANAL DEL DIRECTOR ══
+function home(){
+  if(role!=='direccion'){
+    if(role==='ventas_g'||role==='ventas_t')return ventas();
+    if(role==='finanzas')return finanzas();
+    if(role==='facturacion')return dFact();
+    if(role==='servicio')return servicio();
+    return dEcom();
+  }
+  return reporteSemanal();
+}
+
+function parseBizDate(s){
+  if(!s||s==='—')return null;
+  let raw=String(s).slice(0,10);
+  let d=new Date(raw+'T12:00:00');
+  return isNaN(d)?null:d;
+}
+function dateISO(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function addDaysISO(s,n){
+  let d=parseBizDate(s); d.setDate(d.getDate()+n); return dateISO(d);
+}
+function latestBusinessDate(){
+  let vals=[];
+  const add=v=>{let d=parseBizDate(v);if(d)vals.push(d)};
+  (S.ventas||[]).forEach(x=>add(x.fecha));
+  (S.facturacion||[]).forEach(x=>add(x.fecha));
+  (S.egresos||[]).forEach(x=>add(x.fecha));
+  (S.compras||[]).forEach(x=>{add(x.fecha);add(x.entrega)});
+  (S.nomina||[]).forEach(x=>add(x.ultimoPago));
+  (S.servicio||[]).forEach(x=>{add(x.entrada);add(x.entrega)});
+  if(!vals.length)return dateISO(new Date());
+  return dateISO(new Date(Math.max(...vals.map(d=>d.getTime()))));
+}
+function isoWeekValue(dateStr){
+  let d=parseBizDate(dateStr);
+  let u=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  let day=u.getUTCDay()||7;
+  u.setUTCDate(u.getUTCDate()+4-day);
+  let y0=new Date(Date.UTC(u.getUTCFullYear(),0,1));
+  let week=Math.ceil((((u-y0)/86400000)+1)/7);
+  return `${u.getUTCFullYear()}-W${String(week).padStart(2,'0')}`;
+}
+function mondayFromISOWeek(value){
+  let m=/^(\d{4})-W(\d{2})$/.exec(value||'');
+  if(!m)return latestBusinessDate();
+  let y=+m[1],w=+m[2];
+  let jan4=new Date(Date.UTC(y,0,4));
+  let jan4day=jan4.getUTCDay()||7;
+  let mon=new Date(jan4);
+  mon.setUTCDate(jan4.getUTCDate()-(jan4day-1)+(w-1)*7);
+  return `${mon.getUTCFullYear()}-${String(mon.getUTCMonth()+1).padStart(2,'0')}-${String(mon.getUTCDate()).padStart(2,'0')}`;
+}
+function getReportPeriod(){
+  let base=reportAnchor||latestBusinessDate();
+  if(reportMode==='month'){
+    let d=parseBizDate(base),y=d.getFullYear(),m=d.getMonth();
+    let start=dateISO(new Date(y,m,1,12));
+    let end=dateISO(new Date(y,m+1,0,12));
+    return {start,end};
+  }
+  if(reportMode==='range'){
+    let s=reportCustomStart||base,e=reportCustomEnd||base;
+    if(s>e){let t=s;s=e;e=t}
+    return {start:s,end:e};
+  }
+  let d=parseBizDate(base),dow=d.getDay(),delta=dow===0?-6:1-dow;
+  d.setDate(d.getDate()+delta);
+  let start=dateISO(d),end=addDaysISO(start,6);
+  return {start,end};
+}
+function previousReportPeriod(p){
+  let days=Math.round((parseBizDate(p.end)-parseBizDate(p.start))/86400000)+1;
+  let end=addDaysISO(p.start,-1);
+  return {start:addDaysISO(end,-days+1),end};
+}
+function inReportRange(v,p){
+  let s=String(v||'').slice(0,10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s)&&s>=p.start&&s<=p.end;
+}
+function filterPeriod(arr,key,p){return (arr||[]).filter(x=>inReportRange(x[key],p))}
+function fmtDateShort(s){
+  let d=parseBizDate(s);
+  return new Intl.DateTimeFormat('es-MX',{day:'numeric',month:'short',year:'numeric'}).format(d);
+}
+function periodLabel(p){
+  if(reportMode==='month'){
+    let d=parseBizDate(p.start);
+    let t=new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric'}).format(d);
+    return t.charAt(0).toUpperCase()+t.slice(1);
+  }
+  return `${fmtDateShort(p.start)} – ${fmtDateShort(p.end)}`;
+}
+function trendText(curr,prev){
+  if(!prev)return 'Sin base anterior';
+  let pct=Math.round((curr-prev)/prev*100);
+  if(pct===0)return 'Igual al período anterior';
+  return `${pct>0?'↑':'↓'} ${Math.abs(pct)}% vs período anterior`;
+}
+function setReportMode(m){
+  let old=getReportPeriod();
+  reportMode=m;
+  if(m==='range'){
+    reportCustomStart=old.start;reportCustomEnd=old.end;
+  }else{
+    reportAnchor=old.end;
+  }
+  render(current());
+}
+function setReportWeek(v){reportMode='week';reportAnchor=mondayFromISOWeek(v);render(current())}
+function setReportMonth(v){if(v){reportMode='month';reportAnchor=v+'-15'}render(current())}
+function setCustomStart(v){reportMode='range';reportCustomStart=v;render(current())}
+function setCustomEnd(v){reportMode='range';reportCustomEnd=v;render(current())}
+function shiftReport(dir){
+  let p=getReportPeriod();
+  if(reportMode==='month'){
+    let d=parseBizDate(p.start);d.setMonth(d.getMonth()+dir);reportAnchor=dateISO(d);
+  }else{
+    let days=Math.round((parseBizDate(p.end)-parseBizDate(p.start))/86400000)+1;
+    if(reportMode==='range'){
+      reportCustomStart=addDaysISO(p.start,dir*days);
+      reportCustomEnd=addDaysISO(p.end,dir*days);
+    }else reportAnchor=addDaysISO(p.start,dir*7);
+  }
+  render(current());
+}
+function resetReportPeriod(){
+  reportAnchor=latestBusinessDate();reportMode='week';reportCustomStart='';reportCustomEnd='';render(current());
+}
+function reportControls(){
+  let p=getReportPeriod();
+  let picker='';
+  if(reportMode==='week'){
+    picker=`<button class="secondary" onclick="shiftReport(-1)">←</button>
+      <input type="week" value="${isoWeekValue(p.start)}" onchange="setReportWeek(this.value)">
+      <button class="secondary" onclick="shiftReport(1)">→</button>`;
+  }else if(reportMode==='month'){
+    picker=`<button class="secondary" onclick="shiftReport(-1)">←</button>
+      <input type="month" value="${p.start.slice(0,7)}" onchange="setReportMonth(this.value)">
+      <button class="secondary" onclick="shiftReport(1)">→</button>`;
+  }else{
+    picker=`<input type="date" value="${p.start}" onchange="setCustomStart(this.value)">
+      <span style="font-size:11px;color:var(--muted)">a</span>
+      <input type="date" value="${p.end}" onchange="setCustomEnd(this.value)">`;
+  }
+  return `<div class="period-tools">
+    <div class="period-tabs">
+      <button class="period-tab ${reportMode==='week'?'active':''}" onclick="setReportMode('week')">Semana</button>
+      <button class="period-tab ${reportMode==='month'?'active':''}" onclick="setReportMode('month')">Mes</button>
+      <button class="period-tab ${reportMode==='range'?'active':''}" onclick="setReportMode('range')">Rango personalizado</button>
+    </div>
+    <div class="period-picker">${picker}<button class="secondary" onclick="resetReportPeriod()">Últimos datos</button></div>
+    <div class="period-selected">
+      <div><span style="color:var(--muted)">Mostrando</span><br><b>${periodLabel(p)}</b></div>
+      <div><span class="current-tag">● Actual</span> Stock, saldos abiertos y pendientes muestran el estado actual aunque cambie el período.</div>
+    </div>
+  </div>`;
+}
+
+// Responde en una frase lo que el Director realmente pregunta, antes de mostrarle tarjetas.
+function respuestaLlana(d){
+  let bien=d.flujo>=0;
+  let pendientes=[];
+  if(d.sinPdf)pendientes.push(`${d.sinPdf} corte${d.sinPdf>1?'s':''} sin su PDF de SICAR`);
+  if(d.sinAsignar>0.009)pendientes.push(`${money(d.sinAsignar)} de crédito sin asignar a un cliente`);
+  if(d.svListas)pendientes.push(`${d.svListas} herramienta${d.svListas>1?'s':''} lista${d.svListas>1?'s':''} por entregar`);
+  let comparativa='';
+  if(d.prevVenta>0){
+    let pct=Math.round((d.ventaGen-d.prevVenta)/d.prevVenta*100);
+    if(Math.abs(pct)>=1)comparativa=` Eso es <span class="${pct>=0?'pa-up':'pa-down'}">${pct>=0?'+':''}${pct}%</span> contra el período anterior.`;
+  }
+  return `<div class="plain-answer">
+    <div class="pa-q">¿Cómo va el negocio? · ${periodLabel(d.p)}</div>
+    <div class="pa-line">
+      Se vendió <b>${money(d.ventaGen)}</b> y de eso entró <b>${money(d.recibido)}</b> a caja y banco.
+      Salieron <b>${money(d.egresos)}</b>, así que el período
+      ${bien?`<span class="pa-up">dejó <b>${money(d.flujo)}</b></span>`:`<span class="pa-down">consumió <b>${money(Math.abs(d.flujo))}</b> de caja</span>`}.${comparativa}
+    </div>
+    <div class="pa-note">
+      ${d.creditoGen>0.009?`De lo vendido, ${money(d.creditoGen)} se fue a crédito y todavía no se cobra. `:''}Hay <b>${money(d.porCobrar)}</b> por cobrar en total.
+      ${pendientes.length?`<br>Pendiente de atender: ${pendientes.join(', ')}.`:'<br>Sin pendientes de captura ni de entrega.'}
+      <br>Este número es flujo de dinero, no utilidad: para saber cuánto se ganó realmente falta descontar el costo de la mercancía vendida.
+    </div>
+  </div>`;
+}
+
+function reporteSemanal(){
+  let p=getReportPeriod(),prev=previousReportPeriod(p),ventasP=filterPeriod(S.ventas,'fecha',p),ventasPrev=filterPeriod(S.ventas,'fecha',prev),egresosP=filterPeriod(S.egresos,'fecha',p),cobP=filterPeriod(S.cobranzas||[],'fecha',p);
+  let ventaGen=ventasP.reduce((a,b)=>a+ventaGenerada(b),0),prevVenta=ventasPrev.reduce((a,b)=>a+ventaGenerada(b),0);
+  let cobroVentas=ventasP.reduce((a,b)=>a+ventaCobroActual(b),0),cobranza=cobP.reduce((a,b)=>a+(+b.monto||0),0),recibido=cobroVentas+cobranza;
+  let egresos=egresosP.reduce((a,b)=>a+(+b.monto||0),0),flujo=recibido-egresos,creditoGen=ventasP.reduce((a,b)=>a+ventaCredito(b),0),mano=ventasP.reduce((a,b)=>a+ventaManoObra(b),0);
+  let vG=ventasP.filter(x=>x.sucursal==='Granjero').reduce((a,b)=>a+ventaGenerada(b),0),vT=ventasP.filter(x=>x.sucursal==='Troncoso').reduce((a,b)=>a+ventaGenerada(b),0);
+  let sinAsignar=creditoSinAsignarTotal(),porCobrarAsignado=(S.creditos||[]).reduce((a,b)=>a+(+b.saldo||0),0),porCobrar=porCobrarAsignado+sinAsignar;
+  let svListas=S.servicio.filter(x=>x.estado==='Lista').length,svActivas=S.servicio.filter(x=>!['Entregada','Rechazada'].includes(x.estado)).length,stockAlertas=S.stockMin.filter(x=>x.actual<x.minimo).length,sinPdf=S.ventas.filter(x=>x.origen!=='servicio'&&!x.sicarArchivo).length;
+  return `${head('Reporte del Director','La primera pantalla responde: cuánto se vendió, cuánto dinero entró, cuánto salió y cuál fue el flujo del período.')}
+  ${reportControls()}
+  ${respuestaLlana({p,ventaGen,prevVenta,recibido,egresos,flujo,creditoGen,porCobrar,sinAsignar,sinPdf,svListas})}
+  <div class="grid4" style="margin-bottom:13px">
+    ${kpi('Venta generada',money(ventaGen),trendText(ventaGen,prevVenta))}
+    ${kpi('Dinero recibido',money(recibido),'Ventas cobradas + cobranza')}
+    ${kpi('Egresos pagados',money(egresos),'Salidas del período')}
+    <div class="card kpi ${flujo>=0?'kpi-positive':'kpi-negative'}"><div class="label">Flujo neto del período</div><div class="value" style="color:${flujo>=0?'var(--green)':'var(--red)'}">${money(flujo)}</div><div class="sub">${flujo>=0?'Entró más de lo que salió':'Salió más de lo que entró'} · no es utilidad</div></div>
+  </div>
+  <div class="grid4" style="margin-bottom:13px">
+    ${kpi('Crédito generado',money(creditoGen),'Venta aún no cobrada')}
+    ${kpi('Cobranza del período',money(cobranza),'Todas las formas de pago')}
+    ${kpi('Saldo por cobrar',money(porCobrar),sinAsignar?`Incluye ${money(sinAsignar)} sin asignar`:'Estado actual')}
+    ${kpi('Mano de obra',money(mano),'Servicio / reparaciones')}
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>Comparativo de sucursales</h3><div class="suc-compare"><div class="suc-col granjero"><h4>Granjero</h4><div class="suc-stat"><div class="sl">Venta generada</div><div class="sv">${money(vG)}</div></div></div><div class="suc-col troncoso"><h4>Troncoso</h4><div class="suc-stat"><div class="sl">Venta generada</div><div class="sv">${money(vT)}</div></div></div></div><button class="secondary" style="margin-top:12px;width:100%" onclick="go('ventas')">Ver cortes diarios →</button></div>
+    <div class="card"><h3>Semáforos actuales</h3><div class="rline"><span class="rl-name">Cortes sin evidencia SICAR</span><span class="rl-val" style="color:${sinPdf?'var(--amber)':'var(--green)'}">${sinPdf}</span></div><div class="rline"><span class="rl-name">Crédito sin asignar a cliente</span><span class="rl-val" style="color:${sinAsignar?'var(--amber)':'var(--green)'}">${money(sinAsignar)}</span></div><div class="rline"><span class="rl-name">Servicio, órdenes activas</span><span class="rl-val">${svActivas}</span></div><div class="rline"><span class="rl-name">Servicio, listas por entregar</span><span class="rl-val" style="color:${svListas?'var(--amber)':'var(--green)'}">${svListas}</span></div><div class="rline"><span class="rl-name">Stock bajo mínimo</span><span class="rl-val" style="color:${stockAlertas?'var(--red)':'var(--green)'}">${stockAlertas}</span></div></div>
+  </div>
+  <div class="card" style="margin-top:13px"><h3>Lectura del período</h3><div class="money-grid"><div class="money-cell"><small>Ventas cobradas del día</small><b>${money(cobroVentas)}</b></div><div class="money-cell"><small>Cobranza registrada</small><b>${money(cobranza)}</b></div><div class="money-cell"><small>Egresos</small><b>${money(egresos)}</b></div><div class="money-cell"><small>Crédito sin asignar</small><b>${money(sinAsignar)}</b></div></div><div style="margin-top:12px;font-size:10px;color:var(--muted)">Flujo neto = dinero efectivamente recibido menos egresos pagados. No es utilidad — para saber cuánto ganó o perdió realmente falta integrar el costo de la mercancía vendida. La cobranza se captura una sola vez, en Crédito / Cobranza, sin importar si fue en efectivo, transferencia, tarjeta o cheque.</div></div>`;
+}
+function rBlock(id,ico,name,keyval,lightHtml,body){
+  return `<div class="rblock" id="rb-${id}">
+    <div class="rblock-head" onclick="toggleBlock('${id}')">
+      <div class="rblock-title">
+        <span class="r-ico">${ico}</span>
+        <div><div class="r-name">${name}</div><div class="r-key">${keyval}</div></div>
+      </div>
+      <div class="rblock-right">
+        ${lightHtml}
+        <button class="r-toggle" onclick="event.stopPropagation();toggleBlock('${id}')">+</button>
+      </div>
+    </div>
+    <div class="rblock-body">${body}</div>
+  </div>`;
+}
+function toggleBlock(id){
+  let el=document.getElementById('rb-'+id);
+  el.classList.toggle('open');
+  let btn=el.querySelector('.r-toggle');
+  btn.textContent=el.classList.contains('open')?'−':'+';
+}
+
+// ══ DASHBOARDS POR ROL ══
+function dVentas(){
+  let tot=S.ventas.reduce((a,b)=>a+b.total,0);
+  return `${head('Ventas','Captura aquí tus ventas del día.',`<button class="primary" onclick="openVenta()">+ Registrar venta</button>`)}
+  <div class="grid3">${kpi('Total',money(tot),'Período')}${kpi('Operaciones',S.ventas.length,'Registros')}${kpi('Pendientes',S.ventas.filter(x=>x.estado!=='Pagada').length,'Por cobrar')}</div>
+  <div style="height:13px"></div>${tablaVentas(S.ventas)}`;
+}
+function dFact(){
+  let tot=S.facturacion.reduce((a,b)=>a+b.total,0),pen=S.facturacion.filter(x=>x.estado==='Pendiente').reduce((a,b)=>a+b.total,0);
+  return `${head('Facturación','Facturas y cobranza.',`<button class="primary" onclick="openFact()">+ Nueva factura</button>`)}
+  <div class="grid3">${kpi('Facturado',money(tot),'Total')}${kpi('Por cobrar',money(pen),'Pendiente')}${kpi('Facturas',S.facturacion.length,'Registros')}</div>
+  <div style="height:13px"></div>${tablaFact(S.facturacion)}`;
+}
+function dEcom(){
+  return `${head('Ecommerce','Mercado Libre, oportunidades.',`<button class="primary" onclick="openML()">+ Agregar</button>`)}
+  <div class="grid3">${kpi('Publicados',S.ml.length,'Activos')}${kpi('Sin stock',S.ml.filter(x=>x.stock===0).length,'Urgente')}${kpi('Oportunidades',S.oportunidades.length,'Activas')}</div>
+  <div style="height:13px"></div>${tablaML()}`;
+}
+
+// ══ VENTAS ══
+function ventas(){
+  if(!allowed('ventas'))return denied();
+  let filt=filterSuc(S.ventas);
+  let cortes=filt.filter(x=>x.origen!=='servicio');
+  let ingSv=filt.filter(x=>x.origen==='servicio');
+  let recibido=filt.reduce((a,b)=>a+ventaRecibido(b),0);
+  let ventaGen=filt.reduce((a,b)=>a+ventaGenerada(b),0);
+  let credito=filt.reduce((a,b)=>a+ventaCredito(b),0);
+  let mano=filt.reduce((a,b)=>a+ventaManoObra(b),0);
+  let sinPdf=cortes.filter(x=>!x.sicarArchivo).length;
+  return `${head('Ventas diarias','Cada sucursal captura una sola vez el corte del día. SICAR queda como evidencia, no se recapturan tickets.',`<button class="secondary" onclick="exportarCortes()">Exportar a Excel</button><button class="primary" onclick="openVenta()">+ Registrar corte diario</button>`)}
+  ${sucTabs()}
+  <div class="grid4">
+    ${kpi('Venta generada',money(ventaGen),'Total Venta reportado por SICAR')}
+    ${kpi('Dinero recibido',money(recibido),'Efectivo + transferencia + tarjeta + abonos')}
+    ${kpi('Crédito generado',money(credito),'Venta que aún no se cobró')}
+    ${kpi('Mano de obra',money(mano),'Reparaciones / servicio')}
+  </div>
+  ${sinPdf?`<div class="card" style="margin-top:13px;border-left:3px solid var(--amber)"><b>⚠ ${sinPdf} corte(s) de mostrador sin reporte SICAR.</b> El Director puede identificar rápidamente qué evidencia falta.</div>`:''}
+  <div style="height:13px"></div>${tablaVentas(cortes)}
+  ${ingSv.length?`<div style="height:13px"></div>${tablaIngresosServicio(ingSv)}`:''}`;
+}
+function tablaVentas(rows){
+  return `<div class="card"><h3>Cortes diarios de mostrador</h3><div class="table-wrap"><table>
+    <thead><tr><th>Fecha</th><th>Sucursal</th><th>Efectivo</th><th>Abono efvo.</th><th>Transferencia</th><th>Tarjeta</th><th>Venta SICAR</th><th>Crédito</th><th>Recibido</th><th>Evidencia</th></tr></thead>
+    <tbody>${rows.length?rows.map(x=>{let i=S.ventas.indexOf(x);return `<tr><td>${x.fecha}</td><td>${sucBadge(x.sucursal)}</td><td>${money(x.efectivo||0)}</td><td>${money(abonosEfectivoCorte(x))}</td><td>${money(x.transferencia||0)}</td><td>${money(x.tarjeta||0)}</td><td style="font-weight:700">${money(ventaGenerada(x))}</td><td style="color:var(--amber);font-weight:700">${money(ventaCredito(x))}</td><td style="font-weight:800;color:var(--green)">${money(ventaRecibido(x))}</td><td>${x.sicarArchivo?`<button class="secondary" onclick="openSicar(${i})">📎 ${x.sicarArchivo}</button>`:'<span class="evidence missing">⚠ Sin PDF</span>'}</td></tr>`}).join(''):'<tr><td colspan="10" style="color:var(--muted)">Sin cortes registrados.</td></tr>'}</tbody>
+  </table></div></div>`;
+}
+function tablaIngresosServicio(rows){
+  return `<div class="card"><h3>Ingresos de Centro de Servicio</h3><p style="font-size:11px;color:var(--muted);margin:-8px 0 13px">Se registran solos al entregar y cobrar una orden — no piden evidencia SICAR porque no pasan por caja de mostrador.</p><div class="table-wrap"><table>
+    <thead><tr><th>Fecha</th><th>Orden</th><th>Sucursal</th><th>Forma de pago</th><th>Monto</th></tr></thead>
+    <tbody>${rows.map(x=>`<tr><td>${x.fecha}</td><td style="font-weight:700">${x.origenFolio||'—'}</td><td>${sucBadge(x.sucursal)}</td><td>${x.efectivo?'Efectivo':x.transferencia?'Transferencia':x.tarjeta?'Tarjeta':'—'}</td><td style="font-weight:800;color:var(--green)">${money(x.total)}</td></tr>`).join('')}</tbody>
+  </table></div></div>`;
+}
+function openVenta(){
+  let fixedSuc=role==='ventas_g'?'Granjero':role==='ventas_t'?'Troncoso':'';
+  openModal('Registrar corte diario',`
+  <div class="mode-tabs">
+    <button class="mode-tab active" id="mt-pdf" onclick="setModoCaptura('pdf')"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg> Subir PDF</button>
+    <button class="mode-tab" id="mt-pegar" onclick="setModoCaptura('pegar')"><svg viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path></svg> Pegar totales</button>
+    <button class="mode-tab" id="mt-mano" onclick="setModoCaptura('mano')"><svg viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg> Escribir a mano</button>
+  </div>
+
+  <div class="mode-body active" id="mb-pdf">
+    <div class="callout" style="margin-bottom:12px">Sube el mismo PDF que ya exportan de SICAR (CONSULTAS → VENTAS → Imp). El sistema lee los totales y llena los montos por ti.</div>
+    <div class="field" style="margin-top:0"><input id="v_pdf" type="file" accept="application/pdf" onchange="leerReporteSicar(this)"></div>
+    <div id="sicarReadStatus" style="font-size:11.5px;margin-top:8px"></div>
+  </div>
+
+  <div class="mode-body" id="mb-pegar">
+    <div class="callout" style="margin-bottom:12px">¿No tienes el PDF a la mano? Selecciona en SICAR la tabla de <b>Totales por Forma de Pago</b>, cópiala y pégala aquí. También sirve si te la mandan por WhatsApp.</div>
+    <textarea class="paste-area" id="v_pegado" placeholder="Efectivo        $ 1,375.03&#10;Cheque          $ 0.00&#10;Crédito         $ 8,414.64&#10;Transferencia   $ 6,914.10&#10;Tarjeta         $ 5,252.27&#10;Total General:  $ 21,956.04"></textarea>
+    <div style="margin-top:10px"><button class="secondary" onclick="leerTextoPegado()">Leer los totales pegados</button></div>
+    <div id="pasteReadStatus" style="font-size:11.5px;margin-top:8px"></div>
+  </div>
+
+  <div class="mode-body" id="mb-mano">
+    <div class="callout" style="margin-bottom:12px">Escribe los totales directamente. Es la forma de siempre — úsala si el PDF no abre o si prefieres teclearlos.</div>
+  </div>
+
+  <div class="form-grid" style="margin-top:4px">
+  <div class="field"><label>Fecha</label><input id="v_fecha" type="date" value="${new Date().toISOString().slice(0,10)}" onchange="actualizarAbonoPreview()"></div>
+  <div class="field"><label>Sucursal</label><select id="v_suc" ${fixedSuc?'disabled':''} onchange="actualizarAbonoPreview()"><option ${fixedSuc==='Granjero'?'selected':''}>Granjero</option><option ${fixedSuc==='Troncoso'?'selected':''}>Troncoso</option></select></div>
+  <div class="field"><label>Efectivo de ventas</label><input id="v_efectivo" type="number" step="0.01" value="0" oninput="actualizarCuadre()"></div>
+  <div class="field"><label>Transferencia</label><input id="v_transfer" type="number" step="0.01" value="0" oninput="actualizarCuadre()"></div>
+  <div class="field"><label>Tarjeta / TPV</label><input id="v_tarjeta" type="number" step="0.01" value="0" oninput="actualizarCuadre()"><small style="color:var(--muted)">Captura el bruto. La comisión de terminal va a gastos mensuales.</small></div>
+  <div class="field"><label>Venta a crédito del día</label><input id="v_credito" type="number" step="0.01" value="0" oninput="actualizarCuadre()"></div>
+  <div class="field"><label>Mano de obra incluida</label><input id="v_mano" type="number" step="0.01" value="0"><small style="color:var(--muted)">Sugerida desde el PDF si se detecta — verifícala.</small></div>
+  <div class="field"><label>Total Venta SICAR</label><input id="v_sicar_total" type="number" step="0.01" value="0" oninput="actualizarCuadre()"></div>
+  <div class="field full" id="v_cuadre_box"></div>
+  <div class="field full">
+    <label>Abono en efectivo</label>
+    <div class="callout" style="margin:0" id="v_abono_preview">Sin abonos de efectivo registrados todavía para este día y sucursal.</div>
+    <small style="color:var(--muted)">¿Cobraste crédito en efectivo hoy? Regístralo en <a href="#" onclick="go('credito');return false" style="color:var(--blue);font-weight:600">Crédito / Cobranza</a> — no se vuelve a capturar aquí, para no contarlo dos veces en Finanzas.</small>
+  </div>
+  <div class="field"><label>Responsable</label><input id="v_resp" value="${ROLE_NAMES[role]}"></div>
+  <div class="field"><label>Observación</label><input id="v_obs" placeholder="Opcional, diferencia de corte, incidencia, etc."></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveVenta()">Guardar corte</button></div>`);
+  actualizarAbonoPreview();actualizarCuadre();
+}
+function setModoCaptura(m){
+  ['pdf','pegar','mano'].forEach(k=>{
+    let tab=document.getElementById('mt-'+k),body=document.getElementById('mb-'+k);
+    if(tab)tab.classList.toggle('active',k===m);
+    if(body)body.classList.toggle('active',k===m);
+  });
+}
+// Cuadre: avisa si los montos capturados no dan el Total Venta que reporta SICAR.
+// Es una red de seguridad, no un bloqueo — a veces hay razones legítimas de diferencia.
+function actualizarCuadre(){
+  let box=document.getElementById('v_cuadre_box');if(!box)return;
+  let ef=+document.getElementById('v_efectivo').value||0,tr=+document.getElementById('v_transfer').value||0,
+      ta=+document.getElementById('v_tarjeta').value||0,cr=+document.getElementById('v_credito').value||0,
+      tot=+document.getElementById('v_sicar_total').value||0;
+  let suma=ef+tr+ta+cr,dif=+(tot-suma).toFixed(2);
+  if(tot===0&&suma===0){box.innerHTML='';return}
+  if(Math.abs(dif)<0.02){
+    box.innerHTML=`<div class="callout" style="margin:0;background:var(--greenbg);border-left-color:var(--green);color:var(--green)">✓ Cuadra con SICAR — efectivo + transferencia + tarjeta + crédito dan exactamente el Total Venta.</div>`;
+  }else{
+    box.innerHTML=`<div class="callout" style="margin:0;background:var(--amberbg);border-left-color:var(--amber);color:var(--amber)">⚠ Diferencia de ${money(Math.abs(dif))} contra el Total Venta de SICAR ${dif>0?'(falta capturar)':'(hay de más)'}. Puedes guardar de todos modos — anótalo en la observación si sabes por qué.</div>`;
+  }
+}
+function actualizarAbonoPreview(){
+  let fechaEl=document.getElementById('v_fecha'),sucEl=document.getElementById('v_suc'),el=document.getElementById('v_abono_preview');
+  if(!el||!fechaEl||!sucEl)return;
+  let monto=(S.cobranzas||[]).filter(c=>c.fecha===fechaEl.value&&c.sucursal===sucEl.value&&c.metodo==='Efectivo').reduce((a,b)=>a+(+b.monto||0),0);
+  el.innerHTML=monto>0?`Ya hay ${money(monto)} en abonos de efectivo registrados en Crédito / Cobranza para este día y sucursal — se suman solos al dinero recibido.`:'Sin abonos de efectivo registrados todavía para este día y sucursal.';
+}
+// Lee la tabla de totales pegada como texto — mismo parser que usa el PDF.
+function leerTextoPegado(){
+  let txt=document.getElementById('v_pegado').value||'',st=document.getElementById('pasteReadStatus');
+  if(!txt.trim()){st.innerHTML='<span style="color:var(--amber)">Pega primero la tabla de totales de SICAR.</span>';return}
+  let t=parseSicarTotales(txt)||parseSicarTotalesSuelto(txt);
+  if(!t){st.innerHTML='<span style="color:var(--amber)">⚠ No encontré montos reconocibles. Revisa que el texto incluya las palabras Efectivo, Transferencia, Tarjeta o Crédito con sus cantidades.</span>';return}
+  aplicarTotalesSicar(t,txt,st,'pegado');
+}
+function parseSicarTotalesSuelto(text){
+  const grab=(label)=>{
+    let m=text.match(new RegExp(label+'\\s*:?\\s*\\$?\\s*([\\d,]+(?:\\.\\d{2})?)','i'));
+    return m?parseFloat(m[1].replace(/,/g,'')):null;
+  };
+  let out={efectivo:grab('Efectivo'),cheque:grab('Cheque'),credito:grab('Cr[eé]dito'),
+    transferencia:grab('Transferencia'),vales:grab('Vales'),tarjeta:grab('Tarjeta'),
+    anticipo:grab('Anticipo'),sicarPagos:null,totalGeneral:grab('Total\\s*(?:General|Venta)')};
+  if(out.efectivo===null&&out.tarjeta===null&&out.transferencia===null&&out.credito===null)return null;
+  return out;
+}
+// Vuelca los totales leídos (de PDF o de texto) al formulario y reporta qué se llenó.
+function aplicarTotalesSicar(t,textoCompleto,statusEl,fuente){
+  if(t.efectivo!==null)v_efectivo.value=t.efectivo;
+  if(t.transferencia!==null)v_transfer.value=t.transferencia;
+  if(t.tarjeta!==null)v_tarjeta.value=t.tarjeta;
+  if(t.credito!==null)v_credito.value=t.credito;
+  if(t.totalGeneral!==null)v_sicar_total.value=t.totalGeneral;
+  let mano=parseManoDeObra(textoCompleto||''),manoTxt='';
+  if(mano>0){v_mano.value=mano;manoTxt=`, Mano de obra ${money(mano)} (sugerida — verifícala)`;}
+  let avisos=[];
+  if(t.cheque>0)avisos.push(`SICAR reporta ${money(t.cheque)} en cheque`);
+  if(t.vales>0)avisos.push(`${money(t.vales)} en vales`);
+  if(t.anticipo>0)avisos.push(`${money(t.anticipo)} en anticipo`);
+  let extra=avisos.length?`<br><span style="color:var(--amber)">⚠ ${avisos.join(' y ')} — no hay campo para eso todavía; anótalo en la observación.</span>`:'';
+  if(statusEl)statusEl.innerHTML=`<span style="color:var(--green)">✓ Leído${fuente==='pegado'?' del texto pegado':' de SICAR'} — Efectivo ${money(t.efectivo||0)}, Transferencia ${money(t.transferencia||0)}, Tarjeta ${money(t.tarjeta||0)}, Crédito ${money(t.credito||0)}${manoTxt}.</span>${extra}`;
+  actualizarCuadre();
+}
+async function leerReporteSicar(input){
+  const statusEl=document.getElementById('sicarReadStatus');
+  const file=input.files&&input.files[0];
+  if(!file)return;
+  if(!window.pdfjsLib){
+    if(statusEl)statusEl.innerHTML='<span style="color:var(--amber)">⚠ No se pudo cargar el lector de PDF en este navegador. Captura los montos a mano.</span>';
+    return;
+  }
+  if(statusEl)statusEl.innerHTML='<span style="color:var(--muted)">Leyendo el reporte de SICAR…</span>';
+  try{
+    const buf=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    let text='';
+    for(let p=1;p<=pdf.numPages;p++){
+      const page=await pdf.getPage(p);
+      const content=await page.getTextContent();
+      text+=content.items.map(it=>it.str).join(' ')+'\n';
+    }
+    const t=parseSicarTotales(text)||parseSicarTotalesSuelto(text);
+    if(!t){
+      if(statusEl)statusEl.innerHTML='<span style="color:var(--amber)">⚠ No reconocí la tabla de "Totales por Forma de Pago" en este PDF. Puede que no sea el Reporte General de Ventas de SICAR — prueba pegando los totales o escríbelos a mano.</span>';
+      return;
+    }
+    aplicarTotalesSicar(t,text,statusEl,'pdf');
+  }catch(err){
+    console.error(err);
+    if(statusEl)statusEl.innerHTML='<span style="color:var(--amber)">⚠ No pude abrir este PDF automáticamente. Prueba con la pestaña "Pegar totales" o escríbelos a mano.</span>';
+  }
+}
+function parseSicarTotales(text){
+  let idx=text.indexOf('Totales por Forma de Pago');
+  if(idx===-1)return null;
+  let seg=text.slice(idx,idx+1000);
+  const grab=(label)=>{
+    let re=new RegExp(label+'\\s*:?\\s*\\$?\\s*([\\d,]+\\.\\d{2})','i');
+    let m=seg.match(re);
+    return m?parseFloat(m[1].replace(/,/g,'')):null;
+  };
+  let out={
+    efectivo:grab('Efectivo'),cheque:grab('Cheque'),credito:grab('Cr[eé]dito'),
+    transferencia:grab('Transferencia'),vales:grab('Vales'),tarjeta:grab('Tarjeta'),
+    anticipo:grab('Anticipo'),sicarPagos:grab('SICAR\\s*Pagos'),totalGeneral:grab('Total\\s*General')
+  };
+  if(out.efectivo===null&&out.tarjeta===null&&out.transferencia===null&&out.totalGeneral===null)return null;
+  return out;
+}
+function parseManoDeObra(text){
+  let total=0,m,re=/mano de obra[^\n$]*\$\s*([\d,]+\.\d{2})(?:\s*\$\s*([\d,]+\.\d{2}))?/gi;
+  while((m=re.exec(text))){
+    let val=m[2]!==undefined?parseFloat(m[2].replace(/,/g,'')):parseFloat(m[1].replace(/,/g,''));
+    if(!isNaN(val))total+=val;
+  }
+  return total;
+}
+function saveVenta(){
+  let efectivo=+v_efectivo.value||0,transfer=+v_transfer.value||0,tarjeta=+v_tarjeta.value||0;
+  let x={fecha:v_fecha.value,sucursal:v_suc.value,responsable:v_resp.value,efectivo,transferencia:transfer,tarjeta,credito:+v_credito.value||0,creditoAsignado:0,manoObra:+v_mano.value||0,totalVentaSicar:+v_sicar_total.value||0,total:efectivo+transfer+tarjeta,estado:'Capturado',observacion:v_obs.value||'',sicarArchivo:'',sicarData:''};
+  let file=v_pdf.files&&v_pdf.files[0];
+  const done=()=>{S.ventas.unshift(x);S.activity.unshift({texto:`${x.responsable} registró corte ${money(x.total)} en ${x.sucursal}`,suc:x.sucursal==='Granjero'?'g':'t',ts:'Ahora'});save();closeModal();toast('Corte diario guardado ✓');render('ventas');};
+  if(file){x.sicarArchivo=file.name;if(file.size<=1572864){let r=new FileReader();r.onload=()=>{x.sicarData=r.result;done()};r.onerror=done;r.readAsDataURL(file)}else done();}else done();
+}
+// ══ FACTURACIÓN ══
+function facturacion(){
+  if(!allowed('facturacion'))return denied();
+  let filt=filterSuc(S.facturacion);
+  let tot=filt.reduce((a,b)=>a+b.total,0),pen=filt.filter(x=>x.estado==='Pendiente').reduce((a,b)=>a+b.total,0);
+  return `${head('Facturación','Facturas y cobranza.',`<button class="primary" onclick="openFact()">+ Nueva factura</button>`)}
+  ${sucTabs()}
+  <div class="grid4">
+    ${kpi('Facturado',money(tot),'Total')}${kpi('Por cobrar',money(pen),'Pendiente')}
+    ${kpi('Facturas',filt.length,'Registros')}${kpi('Pagadas',filt.filter(x=>x.estado==='Pagada').length,'Completadas')}
+  </div>
+  <div style="height:13px"></div>${tablaFact(filt)}`;
+}
+function tablaFact(rows){
+  return `<div class="card"><h3>Facturas</h3><div class="table-wrap"><table>
+    <thead><tr><th>Folio</th><th>Cliente</th><th>RFC</th><th>Sucursal</th><th>Fecha</th><th>Total</th><th>Estado</th></tr></thead>
+    <tbody>${rows.map(x=>`<tr><td style="font-weight:700">${x.folio}</td><td>${x.cliente}</td><td style="font-size:10px;color:var(--muted)">${x.rfc||'—'}</td><td>${sucBadge(x.sucursal)}</td><td>${x.fecha}</td><td style="font-weight:700">${money(x.total)}</td><td>${statusBadge(x.estado)}</td></tr>`).join('')}</tbody>
+  </table></div></div>`;
+}
+function openFact(){openModal('Nueva factura',`<div class="form-grid">
+  <div class="field"><label>Folio</label><input id="f_folio" value="F-"></div>
+  <div class="field"><label>Fecha</label><input id="f_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+  <div class="field full"><label>Cliente</label><input id="f_cliente"></div>
+  <div class="field full"><label>RFC</label><input id="f_rfc" placeholder="Opcional"></div>
+  <div class="field"><label>Sucursal</label><select id="f_suc"><option>Granjero</option><option>Troncoso</option></select></div>
+  <div class="field"><label>Total</label><input id="f_total" type="number"></div>
+  <div class="field"><label>Estado</label><select id="f_estado"><option>Pendiente</option><option>Pagada</option></select></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveFact()">Guardar</button></div>`);}
+function saveFact(){
+  let x={folio:f_folio.value,cliente:f_cliente.value,rfc:f_rfc.value,fecha:f_fecha.value,total:+f_total.value,sucursal:f_suc.value,estado:f_estado.value};
+  S.facturacion.unshift(x);S.activity.unshift({texto:`Facturación agregó ${x.folio} · ${x.cliente}`,suc:x.sucursal==='Granjero'?'g':'t',ts:'Ahora'});
+  save();closeModal();toast('Factura guardada ✓');render('facturacion');
+}
+
+// ══ INVENTARIO ══
+function inventario(){
+  if(!allowed('inventario'))return denied();
+  let filt=filterSuc(S.inventario);
+  let alertas=filterSuc(S.stockMin).filter(x=>x.actual<x.minimo);
+  return `${head('Inventario','Entradas, salidas y alertas de stock.',`<button class="secondary" onclick="openStockMin()">+ Mínimo</button><button class="primary" onclick="openMov()">+ Movimiento</button>`)}
+  ${sucTabs()}
+  <div class="grid4">
+    ${kpi('Movimientos',filt.length,'Período')}
+    ${kpi('Entradas',filt.filter(x=>x.tipo.startsWith('Entrada')).length,'')}
+    ${kpi('Salidas',filt.filter(x=>x.tipo.startsWith('Salida')).length,'')}
+    ${kpi('Bajo mínimo',alertas.length,alertas.length?'Revisar':'Sin alertas')}
+  </div>
+  ${alertas.length?`<div class="card" style="margin-top:13px;border-left:3px solid var(--amber)">
+    <h3>⚠ Stock bajo</h3>
+    ${alertas.map(x=>`<div class="rline"><span class="rl-name"><b>${x.producto}</b> · ${x.sku} ${sucBadge(x.sucursal)}</span><span class="rl-val" style="color:var(--red)">${x.actual} disponibles · mín. ${x.minimo}</span></div>`).join('')}
+  </div>`:''}
+  <div style="height:13px"></div>
+  <div class="card"><h3>Movimientos</h3><div class="table-wrap"><table>
+    <thead><tr><th>Fecha</th><th>Tipo</th><th>Producto</th><th>SKU</th><th>Cant.</th><th>Sucursal</th><th>Responsable</th></tr></thead>
+    <tbody>${filt.map(x=>`<tr><td>${x.fecha}</td><td>${statusBadge(x.tipo.startsWith('Entrada')?'Pagada':'Cotización')}</td><td>${x.producto}</td><td style="font-size:10px;color:var(--muted)">${x.sku||''}</td><td>${x.cantidad}</td><td>${sucBadge(x.sucursal)}</td><td>${x.responsable}</td></tr>`).join('')}</tbody>
+  </table></div></div>`;
+}
+function openStockMin(){openModal('Configurar stock mínimo',`<div class="form-grid">
+  <div class="field full"><label>Producto</label><input id="sm_prod" placeholder="Ej. Escobillas HR2670"></div>
+  <div class="field"><label>SKU</label><input id="sm_sku" placeholder="SKU exacto"></div>
+  <div class="field"><label>Sucursal</label><select id="sm_suc"><option>Granjero</option><option>Troncoso</option></select></div>
+  <div class="field"><label>Existencia actual</label><input id="sm_actual" type="number" value="0"></div>
+  <div class="field"><label>Mínimo</label><input id="sm_min" type="number" value="1"></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveStockMin()">Guardar mínimo</button></div>`);}
+function saveStockMin(){
+  let sku=sm_sku.value.trim(), suc=sm_suc.value;
+  let ex=S.stockMin.find(x=>x.sku===sku&&x.sucursal===suc);
+  if(ex){ex.producto=sm_prod.value;ex.actual=+sm_actual.value;ex.minimo=+sm_min.value;}
+  else S.stockMin.unshift({producto:sm_prod.value,sku,actual:+sm_actual.value,minimo:+sm_min.value,sucursal:suc});
+  save();closeModal();toast('Stock mínimo guardado ✓');render('inventario');
+}
+function openMov(){openModal('Movimiento de inventario',`<div class="form-grid">
+  <div class="field"><label>Fecha</label><input id="i_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+  <div class="field"><label>Tipo</label><select id="i_tipo"><option>Entrada</option><option>Salida</option><option>Salida (Refacción)</option></select></div>
+  <div class="field full"><label>Producto</label><input id="i_prod"></div>
+  <div class="field"><label>SKU</label><input id="i_sku" placeholder="Ej. MAK-9557HPG"></div>
+  <div class="field"><label>Sucursal</label><select id="i_suc"><option>Granjero</option><option>Troncoso</option></select></div>
+  <div class="field"><label>Cantidad</label><input id="i_cant" type="number" value="1"></div>
+  <div class="field"><label>Responsable</label><input id="i_resp" value="${ROLE_NAMES[role]}"></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveMov()">Guardar</button></div>`);}
+function saveMov(){
+  let x={fecha:i_fecha.value,tipo:i_tipo.value,producto:i_prod.value,sku:i_sku.value,cantidad:+i_cant.value,sucursal:i_suc.value,responsable:i_resp.value};
+  S.inventario.unshift(x);
+  // Si el SKU tiene mínimo configurado, la existencia cambia con el mismo movimiento: no se captura dos veces.
+  let sm=S.stockMin.find(a=>a.sku===x.sku&&a.sucursal===x.sucursal);
+  if(sm){
+    if(x.tipo.startsWith('Entrada'))sm.actual+=x.cantidad;
+    if(x.tipo.startsWith('Salida'))sm.actual=Math.max(0,sm.actual-x.cantidad);
+  }
+  S.activity.unshift({texto:`${x.responsable}: ${x.tipo} ${x.cantidad} × ${x.producto}`,suc:x.sucursal==='Granjero'?'g':'t',ts:'Ahora'});
+  save();closeModal();toast('Movimiento guardado ✓');render('inventario');
+}
+
+// ══ ML ══
+function ml(){
+  if(!allowed('ecommerce'))return denied();
+  return `${head('Mercado Libre','Seguimiento de publicaciones.',`<button class="primary" onclick="openML()">+ Agregar</button>`)}
+  <div class="grid3">${kpi('Publicados',S.ml.length,'Activos')}${kpi('Sin stock',S.ml.filter(x=>x.stock===0).length,'Urgente')}${kpi('Revisar',S.ml.filter(x=>x.estado==='Revisar').length,'Precio')}</div>
+  <div style="height:13px"></div>${tablaML()}`;
+}
+function tablaML(){return `<div class="card"><h3>Seguimiento ML</h3><div class="table-wrap"><table>
+  <thead><tr><th>Producto</th><th>Precio</th><th>Referencia</th><th>Stock</th><th>Sucursal</th><th>Estado</th></tr></thead>
+  <tbody>${S.ml.map(x=>`<tr><td>${x.producto}</td><td style="font-weight:700">${money(x.precio)}</td><td style="color:var(--muted)">${x.mercado}</td><td style="font-weight:700;color:${x.stock===0?'var(--red)':'inherit'}">${x.stock}</td><td>${sucBadge(x.sucursal)}</td><td>${statusBadge(x.estado)}</td></tr>`).join('')}</tbody>
+</table></div></div>`;}
+function openML(){openModal('Agregar seguimiento ML',`<div class="form-grid">
+  <div class="field full"><label>Producto</label><input id="m_prod"></div>
+  <div class="field"><label>Precio ML</label><input id="m_precio" type="number"></div>
+  <div class="field"><label>Referencia mercado</label><input id="m_mercado" placeholder="$0–$0"></div>
+  <div class="field"><label>Stock</label><input id="m_stock" type="number" value="0"></div>
+  <div class="field"><label>Sucursal</label><select id="m_suc"><option>Granjero</option><option>Troncoso</option><option>Ambas</option></select></div>
+  <div class="field"><label>Estado</label><select id="m_estado"><option>Competitivo</option><option>Cerca del mercado</option><option>Revisar</option><option>Sin stock</option></select></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveML()">Guardar</button></div>`);}
+function saveML(){
+  S.ml.unshift({producto:m_prod.value,precio:+m_precio.value,mercado:m_mercado.value,stock:+m_stock.value,sucursal:m_suc.value,estado:m_estado.value});
+  save();closeModal();toast('Producto agregado ✓');render('ml');
+}
+
+// ══ OPORTUNIDADES ══
+function oportunidades(){
+  if(!allowed('oportunidades'))return denied();
+  let filt=filterSuc(S.oportunidades);
+  return `${head('Oportunidades','Prospectos y compras USA.',`<button class="primary" onclick="openOpo()">+ Nueva</button>`)}
+  ${sucTabs()}
+  <div class="grid3">${kpi('Potencial',money(filt.reduce((a,b)=>a+b.monto,0)),'En negociación')}${kpi('Prospectos B2B',filt.filter(x=>x.tipo==='Prospecto B2B').length,'')}${kpi('Compras USA',filt.filter(x=>x.tipo==='Compra USA').length,'')}</div>
+  <div style="height:13px"></div>
+  <div class="card"><h3>Pipeline</h3><div class="table-wrap"><table>
+    <thead><tr><th>Tipo</th><th>Nombre</th><th>Contacto</th><th>Monto</th><th>Sucursal</th><th>Estado</th></tr></thead>
+    <tbody>${filt.map(x=>`<tr><td>${x.tipo}</td><td style="font-weight:600">${x.nombre}</td><td style="color:var(--muted)">${x.contacto}</td><td style="font-weight:700">${money(x.monto)}</td><td>${sucBadge(x.sucursal)}</td><td>${statusBadge(x.estado)}</td></tr>`).join('')}</tbody>
+  </table></div></div>`;
+}
+function openOpo(){openModal('Nueva oportunidad',`<div class="form-grid">
+  <div class="field"><label>Tipo</label><select id="o_tipo"><option>Prospecto B2B</option><option>Compra USA</option></select></div>
+  <div class="field"><label>Sucursal</label><select id="o_suc"><option>Granjero</option><option>Troncoso</option><option>Ambas</option></select></div>
+  <div class="field full"><label>Nombre / Empresa</label><input id="o_nom"></div>
+  <div class="field"><label>Contacto</label><input id="o_cont"></div>
+  <div class="field"><label>Monto estimado</label><input id="o_monto" type="number"></div>
+  <div class="field"><label>Estado</label><select id="o_est"><option>Primer contacto</option><option>Cotización</option><option>Por autorizar</option><option>Aprobado</option></select></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveOpo()">Guardar</button></div>`);}
+function saveOpo(){
+  S.oportunidades.unshift({tipo:o_tipo.value,nombre:o_nom.value,contacto:o_cont.value,monto:+o_monto.value,sucursal:o_suc.value,estado:o_est.value});
+  save();closeModal();toast('Oportunidad guardada ✓');render('oportunidades');
+}
+
+// ══ CENTRO DE SERVICIO ══
+function servicio(){
+  if(!allowed('servicio'))return denied();
+  let filt=filterSuc(S.servicio);
+  let activas=filt.filter(x=>!['Entregada','Rechazada'].includes(x.estado));
+  let cerradas=filt.filter(x=>['Entregada','Rechazada'].includes(x.estado));
+
+  return `${head('Centro de Servicio Makita','Control de órdenes de reparación — desde la recepción hasta la entrega y el cobro.',
+    `<button class="primary" onclick="nuevaOrden()">+ Nueva orden</button>`)}
+  ${sucTabs()}
+  <div class="grid4">
+    ${kpi('Recibidas',filt.filter(x=>x.estado==='Recibida').length,'Sin iniciar diagnóstico','kpi-makita')}
+    ${kpi('En diagnóstico',filt.filter(x=>x.estado==='Diagnóstico').length,'Revisando','kpi-makita')}
+    ${kpi('Esperando autorización',filt.filter(x=>x.estado==='Cotizada').length,'Cotización enviada','kpi-makita')}
+    ${kpi('Listas p/entregar',filt.filter(x=>x.estado==='Lista').length,'Avisar al cliente',filt.filter(x=>x.estado==='Lista').length>0?'kpi-makita':'')}
+  </div>
+
+  <div style="margin:16px 0 6px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Órdenes activas (${activas.length})</div>
+  ${activas.length===0?'<div class="card" style="color:var(--muted);font-size:13px">Sin órdenes activas en este momento.</div>':
+    activas.map((x,i)=>ordenCard(x,S.servicio.indexOf(x))).join('')}
+
+  ${cerradas.length>0?`
+  <div style="margin:20px 0 6px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Cerradas (${cerradas.length})</div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Orden</th><th>Cliente</th><th>Herramienta</th><th>Entrada</th><th>Estado</th><th>Cobro</th><th>Cobrado</th></tr></thead>
+    <tbody>${cerradas.map(x=>`<tr>
+      <td style="font-weight:700">${x.folio}</td><td>${x.cliente}</td>
+      <td>${x.herramienta}</td><td>${x.entrada}</td>
+      <td>${statusBadge(x.estado)}</td>
+      <td style="font-weight:700">${x.cobro?money(x.cobro):'—'}</td>
+      <td>${x.cobrado?statusBadge('Cobrado'):statusBadge('Pendiente')}</td>
+    </tr>`).join('')}</tbody>
+  </table></div></div>`:''}`;
+}
+
+function ordenCard(x,i){
+  let nextLabel={
+    'Recibida':'Iniciar diagnóstico',
+    'Diagnóstico':'Completar diagnóstico y cotizar',
+    'Cotizada':'Registrar autorización del cliente',
+    'Autorizada':'Iniciar reparación',
+    'En reparación':'Marcar como lista',
+    'Lista':'Registrar entrega y cobro',
+  }[x.estado]||'';
+
+  return `<div class="orden-card">
+    <div class="orden-header">
+      <div>
+        <div class="orden-folio">${x.folio} ${x.garantia?'<span class="badge b-makita">Garantía</span>':''}</div>
+        <div class="orden-cliente">${x.cliente} · ${x.tel} · ${sucBadge(x.sucursal)}</div>
+      </div>
+      ${statusBadge(x.estado)}
+    </div>
+    <div class="orden-tool">🔧 ${x.herramienta}</div>
+    <div class="orden-diag"><b>Falla reportada:</b> ${x.falla}</div>
+    ${x.diagnostico?`<div class="orden-diag" style="margin-top:6px"><b>Diagnóstico:</b> ${x.diagnostico}</div>`:''}
+    ${x.notas?`<div class="orden-diag" style="margin-top:4px;color:var(--amber)"><b>Nota:</b> ${x.notas}</div>`:''}
+
+    <div class="timeline">
+      ${x.historial.slice(-3).map(h=>`<div class="tl-item"><span class="tl-dot"></span><div>${h.texto}<small>${h.ts}</small></div></div>`).join('')}
+    </div>
+
+    <div class="orden-footer">
+      <div class="orden-monto">
+        ${x.cotizacion?money(x.cotizacion):'Sin cotizar'}
+        <small>${x.cotizacion?'Cotización':'—'}</small>
+      </div>
+      <div class="orden-actions">
+        ${nextLabel?`<button class="btn-advance" onclick="avanzar(${i})">${nextLabel} →</button>`:''}
+        <button class="secondary" onclick="imprimirEtiqueta(${i})">🏷 Imprimir etiqueta</button>
+        <button class="secondary" onclick="verOrden(${i})">Ver detalle</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function avanzar(i){
+  let x=S.servicio[i];
+  let ts=new Date().toLocaleString('es-MX',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+  if(x.estado==='Recibida'){
+    openModal('Iniciar diagnóstico — '+x.folio,`
+      <div class="callout"><b>${x.herramienta}</b> · ${x.cliente}<br>Falla reportada: ${x.falla}</div>
+      <div class="field"><label>Diagnóstico técnico</label><textarea id="diag_txt" placeholder="Describe el problema encontrado, piezas afectadas y qué requiere..."></textarea></div>
+      <div class="form-grid" style="margin-top:12px">
+        <div class="field"><label>Costo del servicio (MXN)</label><input id="diag_costo" type="number" placeholder="0"></div>
+        <div class="field"><label>¿Es por garantía?</label><select id="diag_gar"><option value="0">No</option><option value="1">Sí — Sin costo</option></select></div>
+        <div class="field full"><label>Notas adicionales</label><input id="diag_notas" placeholder="Piezas disponibles, tiempo estimado..."></div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:8px">
+        <button class="primary blue-btn" onclick="guardarDiag(${i})">Guardar diagnóstico y cotizar</button>
+      </div>`);
+  } else if(x.estado==='Diagnóstico'){
+    // Ya tiene diagnóstico, mandar cotización
+    openModal('Enviar cotización — '+x.folio,`
+      <div class="callout"><b>${x.herramienta}</b> · ${x.cliente}<br>Diagnóstico: ${x.diagnostico}</div>
+      <div class="field"><label>Monto cotización</label><input id="cot_monto" type="number" value="${x.cotizacion||0}"></div>
+      <div class="field"><label>¿Cómo se envía?</label><select id="cot_via"><option>WhatsApp</option><option>Llamada</option><option>Presencial</option></select></div>
+      <div style="margin-top:16px"><button class="primary" onclick="guardarCot(${i})">Marcar cotización enviada</button></div>`);
+  } else if(x.estado==='Cotizada'){
+    openModal('Autorización del cliente — '+x.folio,`
+      <div class="callout"><b>${x.cliente}</b> autorizó la reparación por ${money(x.cotizacion)}?</div>
+      <div class="field"><label>¿Cómo autorizó?</label><select id="auth_via"><option>WhatsApp</option><option>Presencial</option><option>Llamada</option></select></div>
+      <div class="field"><label>Nota</label><input id="auth_nota" placeholder="Opcional"></div>
+      <div style="margin-top:16px;display:flex;gap:8px">
+        <button class="primary" onclick="guardarAuth(${i},true)">✓ Autorizó — iniciar</button>
+        <button class="secondary" style="border-color:var(--red);color:var(--red)" onclick="guardarAuth(${i},false)">✗ Rechazó</button>
+      </div>`);
+  } else if(x.estado==='Autorizada'){
+    x.estado='En reparación';
+    let ts2=new Date().toLocaleString('es-MX',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+    x.historial.push({texto:'Inició reparación',ts:ts2});
+    S.activity.unshift({texto:`${x.folio}: inició reparación — ${x.herramienta}`,suc:'sv',ts:'Ahora'});
+    save();toast('Reparación iniciada ✓');render('servicio');
+  } else if(x.estado==='En reparación'){
+    x.estado='Lista';
+    let ts2=new Date().toLocaleString('es-MX',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+    x.historial.push({texto:'Reparación completada — lista para entregar',ts:ts2});
+    S.activity.unshift({texto:`${x.folio}: LISTA — ${x.cliente} · ${x.herramienta}`,suc:'sv',ts:'Ahora'});
+    save();toast('Marcada como lista ✓ — avisar al cliente');render('servicio');
+  } else if(x.estado==='Lista'){
+    openModal('Registrar entrega y cobro — '+x.folio,`
+      <div class="callout"><b>${x.herramienta}</b> lista para entregar a <b>${x.cliente}</b><br>Monto: <b>${money(x.cotizacion)}</b></div>
+      <div class="form-grid">
+        <div class="field"><label>Fecha de entrega</label><input id="ent_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div class="field"><label>Cobro real (MXN)</label><input id="ent_cobro" type="number" value="${x.cotizacion||0}"></div>
+        <div class="field"><label>Forma de pago</label><select id="ent_pago"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option></select></div>
+        <div class="field"><label>¿Requiere factura?</label><select id="ent_fact"><option>No</option><option>Sí</option></select></div>
+      </div>
+      <div style="margin-top:16px"><button class="primary" onclick="guardarEntrega(${i})">Confirmar entrega y cobro</button></div>`);
+  }
+}
+
+function guardarDiag(i){
+  let x=S.servicio[i];
+  x.diagnostico=document.getElementById('diag_txt').value;
+  x.cotizacion=+document.getElementById('diag_costo').value;
+  x.garantia=document.getElementById('diag_gar').value==='1';
+  x.notas=document.getElementById('diag_notas').value;
+  x.estado='Diagnóstico';
+  let ts=new Date().toLocaleString('es-MX',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+  x.historial.push({texto:`Diagnóstico completado: ${x.diagnostico.slice(0,60)}`,ts});
+  S.activity.unshift({texto:`${x.folio}: diagnóstico listo — cotización ${money(x.cotizacion)}`,suc:'sv',ts:'Ahora'});
+  save();closeModal();toast('Diagnóstico guardado ✓');render('servicio');
+}
+function guardarCot(i){
+  let x=S.servicio[i];
+  x.cotizacion=+document.getElementById('cot_monto').value;
+  x.estado='Cotizada';
+  let ts=new Date().toLocaleString('es-MX',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+  x.historial.push({texto:`Cotización ${money(x.cotizacion)} enviada por ${document.getElementById('cot_via').value}`,ts});
+  save();closeModal();toast('Cotización registrada ✓');render('servicio');
+}
+function guardarAuth(i,aprobado){
+  let x=S.servicio[i];
+  let ts=new Date().toLocaleString('es-MX',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+  if(aprobado){
+    x.estado='Autorizada';x.autorizado=true;
+    let nota=document.getElementById('auth_nota').value;
+    x.historial.push({texto:`Cliente autorizó por ${document.getElementById('auth_via').value}${nota?' — '+nota:''}`,ts});
+    S.activity.unshift({texto:`${x.folio}: autorizada — ${x.cliente}`,suc:'sv',ts:'Ahora'});
+    save();closeModal();toast('Autorización registrada ✓');render('servicio');
+  } else {
+    x.estado='Rechazada';x.autorizado=false;
+    x.cobro=200;// cobro diagnóstico
+    x.historial.push({texto:'Cliente rechazó cotización — se cobra diagnóstico',ts});
+    S.activity.unshift({texto:`${x.folio}: rechazada por ${x.cliente}`,suc:'sv',ts:'Ahora'});
+    save();closeModal();toast('Registrado como rechazada');render('servicio');
+  }
+}
+function guardarEntrega(i){
+  let x=S.servicio[i];
+  x.estado='Entregada';
+  x.entrega=document.getElementById('ent_fecha').value;
+  x.cobro=+document.getElementById('ent_cobro').value;
+  x.cobrado=true;
+  let metodo=document.getElementById('ent_pago').value;
+  let ts=new Date().toLocaleString('es-MX',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+  x.historial.push({texto:`Entregada · Cobro ${money(x.cobro)} en ${metodo}`,ts});
+  S.activity.unshift({texto:`${x.folio}: entregada y cobrada ${money(x.cobro)} — ${x.cliente}`,suc:'sv',ts:'Ahora'});
+  // Se registra como ingreso de Servicio, no como corte de mostrador: no pide evidencia SICAR
+  // y usa el mismo esquema de campos que Ventas para que sume correctamente al dinero recibido.
+  let venta={fecha:x.entrega,sucursal:x.sucursal,responsable:'Centro de Servicio',efectivo:0,transferencia:0,tarjeta:0,credito:0,creditoAsignado:0,manoObra:x.cobro,totalVentaSicar:0,total:x.cobro,estado:'Capturado',observacion:`Cobro de orden ${x.folio} · ${x.cliente}`,sicarArchivo:'',sicarData:'',origen:'servicio',origenFolio:x.folio};
+  if(metodo==='Efectivo')venta.efectivo=x.cobro;
+  else if(metodo==='Transferencia')venta.transferencia=x.cobro;
+  else if(metodo==='Tarjeta')venta.tarjeta=x.cobro;
+  S.ventas.unshift(venta);
+  save();closeModal();toast('Entrega y cobro registrados ✓ — ingreso sumado a Finanzas');render('servicio');
+}
+
+function verOrden(i){
+  let x=S.servicio[i];
+  openModal(`Detalle orden ${x.folio}`,`
+    <div class="form-grid">
+      <div><div class="field"><label>Cliente</label><input value="${x.cliente}" disabled></div></div>
+      <div><div class="field"><label>Teléfono</label><input value="${x.tel}" disabled></div></div>
+      <div class="full"><div class="field"><label>Herramienta</label><input value="${x.herramienta}" disabled></div></div>
+      <div><div class="field"><label>Modelo</label><input value="${x.modelo||'—'}" disabled></div></div>
+      <div><div class="field"><label>No. serie</label><input value="${x.serie||'—'}" disabled></div></div>
+      <div class="full"><div class="field"><label>Falla reportada</label><textarea disabled style="height:60px">${x.falla}</textarea></div></div>
+      ${x.diagnostico?`<div class="full"><div class="field"><label>Diagnóstico</label><textarea disabled style="height:60px">${x.diagnostico}</textarea></div></div>`:''}
+      <div><div class="field"><label>Cotización</label><input value="${x.cotizacion?money(x.cotizacion):'—'}" disabled></div></div>
+      <div><div class="field"><label>Estado</label><input value="${x.estado}" disabled></div></div>
+    </div>
+    <h3 style="margin-top:16px;margin-bottom:10px;font-size:13px">Historial</h3>
+    <div class="timeline">
+      ${x.historial.map(h=>`<div class="tl-item"><span class="tl-dot"></span><div>${h.texto}<small>${h.ts}</small></div></div>`).join('')}
+    </div>
+    <div style="margin-top:16px"><button class="secondary" onclick="closeModal()">Cerrar</button></div>`);
+}
+
+function nuevaOrden(){
+  let nextFolio='SR-'+(1027+S.servicio.filter(x=>!['Entregada','Rechazada'].includes(x.estado)).length);
+  openModal('Nueva orden de servicio',`
+    <div class="callout"><b>Centro de Servicio Autorizado Makita.</b> Llena todos los datos al momento de recibir la herramienta.</div>
+    <div class="form-grid">
+      <div class="field"><label>No. orden</label><input id="ns_folio" value="${nextFolio}"></div>
+      <div class="field"><label>Fecha de entrada</label><input id="ns_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>Sucursal</label><select id="ns_suc"><option>Granjero</option><option>Troncoso</option></select></div>
+      <div class="field"><label>¿Garantía?</label><select id="ns_gar"><option value="0">No</option><option value="1">Sí</option></select></div>
+      <div class="field full"><label>Cliente (nombre o empresa)</label><input id="ns_cliente" placeholder="Ej. Taller López / Constructora Norte"></div>
+      <div class="field"><label>Teléfono / WhatsApp</label><input id="ns_tel" placeholder="656-000-0000"></div>
+      <div class="field full"><label>Herramienta y modelo</label><input id="ns_tool" placeholder="Ej. Rotomartillo Makita HR2670"></div>
+      <div class="field"><label>Modelo exacto</label><input id="ns_modelo" placeholder="Ej. HR2670"></div>
+      <div class="field"><label>No. de serie (si tiene)</label><input id="ns_serie" placeholder="Opcional"></div>
+      <div class="field full"><label>Falla reportada por el cliente</label><textarea id="ns_falla" placeholder="Describe lo que le dijo el cliente que le pasa a la herramienta..."></textarea></div>
+    </div>
+    <div style="margin-top:16px"><button class="primary" onclick="saveOrden()">Registrar entrada</button></div>`);
+}
+function saveOrden(){
+  let ts=new Date().toLocaleString('es-MX',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+  let x={
+    folio:ns_folio.value,cliente:ns_cliente.value,tel:ns_tel.value,
+    herramienta:ns_tool.value,modelo:ns_modelo.value,serie:ns_serie.value,
+    sucursal:ns_suc.value,falla:ns_falla.value,garantia:ns_gar.value==='1',
+    entrada:ns_fecha.value,estado:'Recibida',
+    diagnostico:'',cotizacion:0,autorizado:false,
+    entrega:'—',cobro:0,cobrado:false,notas:'',
+    historial:[{texto:`Recibida en sucursal ${ns_suc.value}`,ts}]
+  };
+  S.servicio.unshift(x);
+  S.activity.unshift({texto:`${x.folio}: recibida — ${x.herramienta} · ${x.cliente}`,suc:'sv',ts:'Ahora'});
+  save();closeModal();toast('Orden registrada ✓');render('servicio');
+}
+
+
+function imprimirEtiqueta(i){let x=S.servicio[i];let w=window.open('','_blank','width=520,height=420');w.document.write(`<!doctype html><html><head><title>${x.folio}</title><style>body{font-family:Arial;padding:20px}.label{width:360px;border:2px solid #111;padding:18px}.folio{font-size:32px;font-weight:900}.bt{font-size:14px;font-weight:700;margin-bottom:12px}.tool{font-size:16px;font-weight:700;margin-top:10px}.meta{font-size:12px;margin-top:6px}.code{margin-top:16px;font-family:monospace;font-size:24px;letter-spacing:4px;border-top:1px solid #333;padding-top:12px}</style></head><body><div class="label"><div class="bt">BORDER TOOLS · CENTRO DE SERVICIO</div><div class="folio">${x.folio}</div><div class="tool">${x.herramienta}</div><div class="meta">${x.cliente} · ${x.sucursal}</div><div class="meta">Modelo: ${x.modelo||'—'} · Serie: ${x.serie||'—'}</div><div class="code">|||| ${x.folio.replace(/\D/g,'')} ||||</div></div><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close()}
+
+// ══ ESTADÍSTICAS SERVICIO ══
+function servicio_stats(){
+  if(!allowed('servicio'))return denied();
+  let total=S.servicio.length;
+  let cobrado=S.servicio.filter(x=>x.cobrado).reduce((a,b)=>a+(b.cobro||0),0);
+  let pendCobro=S.servicio.filter(x=>!x.cobrado&&x.estado==='Entregada').reduce((a,b)=>a+(b.cobro||0),0);
+  let rechazadas=S.servicio.filter(x=>x.estado==='Rechazada').length;
+  let tiempoPromedio=3.2; // demo
+
+  return `${head('Estadísticas de Servicio','Desempeño del Centro de Servicio Autorizado Makita.')}
+  <div class="grid4">
+    ${kpi('Órdenes totales',total,'Historial completo','kpi-makita')}
+    ${kpi('Ingresos cobrados',money(cobrado),'Período','kpi-makita')}
+    ${kpi('Por cobrar',money(pendCobro),'Entregadas sin cobrar','kpi-makita')}
+    ${kpi('Rechazadas',rechazadas,'No autorizaron','kpi-makita')}
+  </div>
+  <div class="grid2" style="margin-top:13px">
+    <div class="card">
+      <h3>Por estado</h3>
+      ${['Recibida','Diagnóstico','Cotizada','Autorizada','En reparación','Lista','Entregada','Rechazada'].map(e=>{
+        let n=S.servicio.filter(x=>x.estado===e).length;
+        if(!n)return '';
+        return `<div class="bar-row"><span>${e}</span><div class="bar"><div class="bar-fill" style="width:${Math.round(n/total*100)}%"></div></div><span>${n}</span></div>`;
+      }).join('')}
+    </div>
+    <div class="card">
+      <h3>Por sucursal</h3>
+      ${['Granjero','Troncoso'].map(s=>{
+        let n=S.servicio.filter(x=>x.sucursal===s).length;
+        let ing=S.servicio.filter(x=>x.sucursal===s&&x.cobrado).reduce((a,b)=>a+(b.cobro||0),0);
+        return `<div style="margin-bottom:14px"><div style="font-weight:700;font-size:13px;margin-bottom:4px">${sucBadge(s)} ${s}</div>
+          <div style="font-size:11px;color:var(--muted)">${n} órdenes · Ingresos: <b style="color:var(--text)">${money(ing)}</b></div></div>`;
+      }).join('')}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+        <div style="font-size:11px;color:var(--muted)">Tiempo promedio por orden</div>
+        <div style="font-size:22px;font-weight:900;color:var(--makita)">${tiempoPromedio} días</div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:13px">
+    <h3>Modelos más atendidos</h3>
+    ${Object.entries(S.servicio.reduce((a,x)=>{a[x.modelo||'Sin modelo']=(a[x.modelo||'Sin modelo']||0)+1;return a},{})).sort((a,b)=>b[1]-a[1]).map(([m,n])=>`<div class="bar-row"><span>${m}</span><div class="bar"><div class="bar-fill" style="width:${Math.round(n/total*100)}%"></div></div><span>${n}</span></div>`).join('')}
+  </div>`;
+}
+
+
+// ══ FINANZAS ══
+function finanzas(){
+  if(!allowed('finanzas'))return denied();
+  let p=getReportPeriod(),ventasP=filterPeriod(S.ventas,'fecha',p),egresosP=filterPeriod(S.egresos,'fecha',p),cobP=filterPeriod(S.cobranzas||[],'fecha',p);
+  let ventaGenerada=ventasP.reduce((a,b)=>a+ventaGeneradaFn(b),0);
+  let cobroVentas=ventasP.reduce((a,b)=>a+ventaCobroActual(b),0);
+  let cobranza=cobP.reduce((a,b)=>a+(+b.monto||0),0);
+  let dineroEntrado=cobroVentas+cobranza;
+  let egresos=egresosP.reduce((a,b)=>a+(+b.monto||0),0);
+  let flujo=dineroEntrado-egresos;
+  let creditoGen=ventasP.reduce((a,b)=>a+ventaCredito(b),0);
+  let sinAsignar=creditoSinAsignarTotal();
+  let porCobrarAsignado=(S.creditos||[]).reduce((a,b)=>a+(+b.saldo||0),0);
+  let porCobrar=porCobrarAsignado+sinAsignar;
+  let cats=egresosP.reduce((a,x)=>{a[x.categoria]=(a[x.categoria]||0)+(+x.monto||0);return a},{});
+  return `${head('Finanzas','Una sola vista para saber cuánto entró, cuánto salió y si el período dejó dinero o consumió caja.',`<button class="secondary" onclick="exportarEgresos()">Exportar egresos</button><button class="primary" onclick="openEgreso()">+ Registrar egreso</button>`)}
+  ${reportControls()}
+  <div class="grid4">
+    ${kpi('Venta generada',money(ventaGenerada),'Incluye crédito, según SICAR')}
+    ${kpi('Dinero recibido',money(dineroEntrado),'Ventas cobradas + cobranza')}
+    ${kpi('Egresos pagados',money(egresos),'Salidas del período')}
+    <div class="card kpi ${flujo>=0?'kpi-positive':'kpi-negative'}"><div class="label">Flujo neto</div><div class="value" style="color:${flujo>=0?'var(--green)':'var(--red)'}">${money(flujo)}</div><div class="sub">${flujo>=0?'Entró más dinero del que salió':'Salió más dinero del que entró'}</div></div>
+  </div>
+  <div class="grid2" style="margin-top:13px">
+    <div class="card fin-hero"><div class="label" style="font-size:10px;text-transform:uppercase;font-weight:800;letter-spacing:.08em">Flujo neto del período · ${periodLabel(p)}</div><div class="value" style="font-size:38px;font-weight:900;margin-top:10px">${flujo>=0?'+':'−'}${money(Math.abs(flujo))}</div><div style="font-size:11px;color:#d8e7f1;margin-top:8px">Dinero recibido menos egresos pagados. No es utilidad — falta integrar costo de mercancía vendida para saber cuánto se ganó o perdió realmente.</div></div>
+    <div class="card"><h3>Qué compone el dinero recibido</h3>
+      <div class="profit-line"><span>Ventas cobradas del período</span><strong>${money(cobroVentas)}</strong></div>
+      <div class="profit-line"><span>Cobranza registrada <small style="color:var(--muted);font-weight:400">(todas las formas)</small></span><strong>${money(cobranza)}</strong></div>
+      <div class="profit-line"><span>Crédito generado, no cobrado hoy</span><strong style="color:var(--amber)">${money(creditoGen)}</strong></div>
+      <div class="profit-line"><span>Crédito sin asignar a cliente <span class="current-tag">Actual</span></span><strong style="color:var(--amber)">${money(sinAsignar)}</strong></div>
+      <div class="profit-line"><span>Saldo por cobrar <span class="current-tag">Actual</span></span><strong>${money(porCobrar)}</strong></div>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:13px">
+    <div class="card"><h3>Egresos por categoría · ${periodLabel(p)}</h3>${Object.keys(cats).length?Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<div class="rline"><span class="rl-name">${c}</span><span class="rl-val">${money(v)}</span></div>`).join(''):'<div style="color:var(--muted);font-size:12px">Sin egresos en este período.</div>'}</div>
+    <div class="card"><h3>Puntos a revisar <span class="current-tag">Actual</span></h3><div class="rline"><span class="rl-name">Saldo por cobrar</span><span class="rl-val">${money(porCobrar)}</span></div><div class="rline"><span class="rl-name">Crédito sin asignar</span><span class="rl-val" style="color:${sinAsignar?'var(--amber)':'var(--green)'}">${money(sinAsignar)}</span></div><div class="rline"><span class="rl-name">Compras en tránsito</span><span class="rl-val">${S.compras.filter(x=>x.estado==='En tránsito').length}</span></div><div class="rline"><span class="rl-name">Cortes sin PDF SICAR</span><span class="rl-val">${S.ventas.filter(x=>x.origen!=='servicio'&&!x.sicarArchivo).length}</span></div></div>
+  </div>
+  <div class="card" style="margin-top:13px"><h3>Egresos del período</h3><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Proveedor</th><th>Sucursal</th><th>Monto</th></tr></thead><tbody>${egresosP.length?egresosP.map(x=>`<tr><td>${x.fecha}</td><td>${x.concepto}</td><td>${x.categoria}</td><td>${x.proveedor}</td><td>${sucBadge(x.sucursal)}</td><td style="font-weight:700">${money(x.monto)}</td></tr>`).join(''):'<tr><td colspan="6" style="color:var(--muted)">Sin egresos registrados en este período.</td></tr>'}</tbody></table></div></div>`;
+}
+function openEgreso(){openModal('Registrar egreso',`<div class="form-grid">
+  <div class="field"><label>Fecha</label><input id="e_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+  <div class="field"><label>Sucursal</label><select id="e_suc"><option>Granjero</option><option>Troncoso</option><option>Ambas</option></select></div>
+  <div class="field full"><label>Concepto</label><input id="e_concepto"></div>
+  <div class="field"><label>Categoría</label><select id="e_cat"><option>Mercancía / Proveedores</option><option>Refacciones</option><option>Nómina</option><option>Comisiones vendedores</option><option>Comisión terminal</option><option>Renta</option><option>Servicios</option><option>Impuestos / IMSS / Infonavit</option><option>Contador</option><option>Tarjetas / Préstamos</option><option>SICAR / Software</option><option>Mercancía USA</option><option>Otros</option></select></div>
+  <div class="field"><label>Proveedor</label><input id="e_prov"></div>
+  <div class="field"><label>Monto</label><input id="e_monto" type="number" placeholder="0"></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveEgreso()">Guardar egreso</button></div>`);}
+function saveEgreso(){
+  let x={fecha:e_fecha.value,concepto:e_concepto.value,categoria:e_cat.value,proveedor:e_prov.value,monto:+e_monto.value,sucursal:e_suc.value};
+  S.egresos.unshift(x);S.activity.unshift({texto:`Finanzas registró egreso ${money(x.monto)} · ${x.concepto}`,suc:'sys',ts:'Ahora'});
+  save();closeModal();toast('Egreso guardado ✓');render('finanzas');
+}
+
+// ══ NÓMINA ══
+function nomina(){
+  if(!allowed('nomina'))return denied();
+  let total=S.nomina.reduce((a,b)=>a+b.sueldo,0), pendientes=S.nomina.filter(x=>x.estado!=='Pagado');
+  return `${head('Nómina','Control simple del equipo y sus pagos.',`<button class="primary" onclick="openEmpleado()">+ Agregar persona</button>`)}
+  <div class="grid4">
+    ${kpi('Equipo',S.nomina.length,'Personas registradas')}
+    ${kpi('Nómina del período',money(total),'Según registros')}
+    ${kpi('Pagados',S.nomina.filter(x=>x.estado==='Pagado').length,'Al día')}
+    ${kpi('Pendientes',pendientes.length,pendientes.length?'Revisar':'Sin pendientes')}
+  </div>
+  <div class="card" style="margin-top:13px"><h3>Equipo</h3><div class="table-wrap"><table>
+    <thead><tr><th>Nombre</th><th>Área</th><th>Sucursal</th><th>Frecuencia</th><th>Importe</th><th>Último pago</th><th>Estado</th><th>Acción</th></tr></thead>
+    <tbody>${S.nomina.map((x,i)=>`<tr><td style="font-weight:600">${x.nombre}</td><td>${x.rol}</td><td>${sucBadge(x.sucursal)}</td><td>${x.tipo}</td><td style="font-weight:700">${money(x.sueldo)}</td><td>${x.ultimoPago}</td><td>${statusBadge(x.estado)}</td><td><button class="secondary" onclick="toggleNomina(${i})">${x.estado==='Pagado'?'Marcar pendiente':'Registrar pago'}</button></td></tr>`).join('')}</tbody>
+  </table></div></div>`;
+}
+function openEmpleado(){openModal('Agregar a nómina',`<div class="form-grid">
+  <div class="field full"><label>Nombre</label><input id="n_nombre"></div>
+  <div class="field"><label>Área / puesto</label><input id="n_rol"></div>
+  <div class="field"><label>Sucursal</label><select id="n_suc"><option>Granjero</option><option>Troncoso</option></select></div>
+  <div class="field"><label>Frecuencia</label><select id="n_tipo"><option>Quincenal</option><option>Semanal</option></select></div>
+  <div class="field"><label>Importe</label><input id="n_sueldo" type="number"></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveEmpleado()">Guardar</button></div>`);}
+function saveEmpleado(){
+  S.nomina.push({id:'N-'+Date.now(),nombre:n_nombre.value,rol:n_rol.value,sucursal:n_suc.value,tipo:n_tipo.value,sueldo:+n_sueldo.value,ultimoPago:'—',estado:'Pendiente'});
+  save();closeModal();toast('Persona agregada ✓');render('nomina');
+}
+function toggleNomina(i){
+  let x=S.nomina[i];
+  if(!x.id)x.id='N-'+Date.now()+'-'+i;
+  if(x.estado==='Pagado'){
+    x.estado='Pendiente';
+    // se quita el pago: se retira el egreso que se había generado, para no dejar un gasto fantasma
+    S.egresos=(S.egresos||[]).filter(e=>e.origenNominaId!==x.id);
+  } else {
+    x.estado='Pagado';x.ultimoPago=new Date().toISOString().slice(0,10);
+    S.egresos.unshift({fecha:x.ultimoPago,concepto:`Pago nómina · ${x.nombre}`,categoria:'Nómina',proveedor:x.rol||'Equipo',monto:x.sueldo,sucursal:x.sucursal,origenNominaId:x.id});
+    S.activity.unshift({texto:`Nómina registrada · ${x.nombre} ${money(x.sueldo)}`,suc:'sys',ts:'Ahora'});
+  }
+  save();toast(x.estado==='Pagado'?'Pago registrado ✓ — sumado a Finanzas':'Marcado pendiente — egreso retirado de Finanzas');render('nomina');
+}
+
+// ══ COMISIONES ══
+function comisiones(){
+  if(!allowed('comisiones'))return denied();
+  let filt=filterSuc(S.comisiones||[]);
+  let total=filt.reduce((a,b)=>a+(+b.monto||0),0),pend=filt.filter(x=>x.estado!=='Pagada');
+  let pendMonto=pend.reduce((a,b)=>a+(+b.monto||0),0);
+  return `${head('Comisiones','Comisión por vendedor y período, separada del sueldo fijo. Al pagarse se refleja sola en Finanzas.',`<button class="primary" onclick="openComision()">+ Registrar comisión</button>`)}
+  ${sucTabs()}
+  <div class="grid4">
+    ${kpi('Comisiones del período',money(total),'Registradas')}
+    ${kpi('Pagadas',filt.filter(x=>x.estado==='Pagada').length,'Reflejadas en Finanzas')}
+    ${kpi('Pendientes',pend.length,pend.length?'Por pagar':'Sin pendientes')}
+    ${kpi('Monto pendiente',money(pendMonto),pend.length?'Revisar':'Al día')}
+  </div>
+  <div class="card" style="margin-top:13px"><h3>Comisiones</h3><div class="table-wrap"><table>
+    <thead><tr><th>Persona</th><th>Sucursal</th><th>Tipo</th><th>Período</th><th>Monto</th><th>Fecha de pago</th><th>Estado</th><th>Acción</th></tr></thead>
+    <tbody>${filt.length?filt.map((x,i)=>{let gi=(S.comisiones||[]).indexOf(x);return `<tr><td style="font-weight:600">${x.nombre}</td><td>${sucBadge(x.sucursal)}</td><td>${x.tipo}</td><td>${x.periodo}</td><td style="font-weight:700">${money(x.monto)}</td><td>${x.fechaPago}</td><td>${statusBadge(x.estado)}</td><td><button class="secondary" onclick="toggleComision(${gi})">${x.estado==='Pagada'?'Marcar pendiente':'Registrar pago'}</button></td></tr>`}).join(''):'<tr><td colspan="8" style="color:var(--muted)">Sin comisiones registradas.</td></tr>'}</tbody>
+  </table></div></div>`;
+}
+function openComision(){openModal('Registrar comisión',`<div class="form-grid">
+  <div class="field full"><label>Persona</label><input id="cm_nombre" placeholder="Ej. Alejandro"></div>
+  <div class="field"><label>Sucursal</label><select id="cm_suc"><option>Granjero</option><option>Troncoso</option></select></div>
+  <div class="field"><label>Tipo</label><select id="cm_tipo"><option>Venta mostrador</option><option>Mano de obra</option><option>Otra</option></select></div>
+  <div class="field full"><label>Período</label><input id="cm_periodo" placeholder="Ej. Semana del 01 al 07 sep"></div>
+  <div class="field"><label>Monto</label><input id="cm_monto" type="number" step="0.01"></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveComision()">Guardar comisión</button></div>`);}
+function saveComision(){
+  S.comisiones.unshift({id:'CM-'+Date.now(),nombre:cm_nombre.value,sucursal:cm_suc.value,tipo:cm_tipo.value,periodo:cm_periodo.value,monto:+cm_monto.value||0,estado:'Pendiente',fechaPago:'—'});
+  save();closeModal();toast('Comisión registrada ✓');render('comisiones');
+}
+function toggleComision(i){
+  let x=S.comisiones[i];
+  if(!x.id)x.id='CM-'+Date.now()+'-'+i;
+  if(x.estado==='Pagada'){
+    x.estado='Pendiente';x.fechaPago='—';
+    S.egresos=(S.egresos||[]).filter(e=>e.origenComisionId!==x.id);
+  } else {
+    x.estado='Pagada';x.fechaPago=new Date().toISOString().slice(0,10);
+    S.egresos.unshift({fecha:x.fechaPago,concepto:`Comisión ${x.tipo} · ${x.nombre}`,categoria:'Comisiones vendedores',proveedor:x.nombre,monto:x.monto,sucursal:x.sucursal,origenComisionId:x.id});
+    S.activity.unshift({texto:`Comisión pagada · ${x.nombre} ${money(x.monto)}`,suc:'sys',ts:'Ahora'});
+  }
+  save();toast(x.estado==='Pagada'?'Pago registrado ✓ — sumado a Finanzas':'Marcado pendiente — egreso retirado de Finanzas');render('comisiones');
+}
+
+// ══ COMPRAS Y PROVEEDORES ══
+function compras(){
+  if(!allowed('compras'))return denied();
+  let filt=filterSuc(S.compras), transito=filt.filter(x=>x.estado==='En tránsito');
+  return `${head('Compras y proveedores','Seguimiento de órdenes de compra y entregas.',`<button class="primary" onclick="openCompra()">+ Orden de compra</button>`)}
+  ${sucTabs()}
+  <div class="grid4">
+    ${kpi('Órdenes',filt.length,'Registradas')}
+    ${kpi('En tránsito',transito.length,'Por recibir')}
+    ${kpi('Monto en tránsito',money(transito.reduce((a,b)=>a+b.monto,0)),'Pendiente de llegada')}
+    ${kpi('Recibidas',filt.filter(x=>x.estado==='Recibida').length,'Completadas')}
+  </div>
+  <div class="card" style="margin-top:13px"><h3>Órdenes</h3><div class="table-wrap"><table>
+    <thead><tr><th>Folio</th><th>Proveedor</th><th>Fecha</th><th>Sucursal</th><th>Monto</th><th>Entrega</th><th>Estado</th><th>Acción</th></tr></thead>
+    <tbody>${filt.map(x=>{let i=S.compras.indexOf(x);return `<tr><td style="font-weight:700">${x.folio}</td><td>${x.proveedor}</td><td>${x.fecha}</td><td>${sucBadge(x.sucursal)}</td><td style="font-weight:700">${money(x.monto)}</td><td>${x.entrega}</td><td>${statusBadge(x.estado)}</td><td>${x.estado==='En tránsito'?`<button class="secondary" onclick="recibirCompra(${i})">Marcar recibida</button>`:'—'}</td></tr>`}).join('')}</tbody>
+  </table></div></div>`;
+}
+function openCompra(){openModal('Nueva orden de compra',`<div class="form-grid">
+  <div class="field"><label>Folio</label><input id="c_folio" value="OC-"></div>
+  <div class="field"><label>Fecha</label><input id="c_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+  <div class="field full"><label>Proveedor</label><input id="c_prov" placeholder="Makita México / DeWalt / etc."></div>
+  <div class="field"><label>Sucursal</label><select id="c_suc"><option>Granjero</option><option>Troncoso</option><option>Ambas</option></select></div>
+  <div class="field"><label>Monto</label><input id="c_monto" type="number"></div>
+  <div class="field"><label>Entrega estimada</label><input id="c_entrega" type="date"></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveCompra()">Guardar orden</button></div>`);}
+function saveCompra(){
+  let x={folio:c_folio.value,proveedor:c_prov.value,fecha:c_fecha.value,monto:+c_monto.value,sucursal:c_suc.value,estado:'En tránsito',entrega:c_entrega.value||'—'};
+  S.compras.unshift(x);S.activity.unshift({texto:`Compra ${x.folio} · ${x.proveedor} ${money(x.monto)}`,suc:'sys',ts:'Ahora'});
+  save();closeModal();toast('Orden de compra guardada ✓');render('compras');
+}
+function recibirCompra(i){let x=S.compras[i];x.estado='Recibida';x.entrega=new Date().toISOString().slice(0,10);S.activity.unshift({texto:`${x.folio} recibida · ${x.proveedor}`,suc:'sys',ts:'Ahora'});save();toast('Compra marcada como recibida ✓');render('compras');}
+
+// ══ CLIENTES B2B ══
+function clientes(){
+  if(!allowed('clientes'))return denied();
+  let filt=filterSuc(S.clientesB2B), saldo=filt.reduce((a,b)=>a+b.saldo,0);
+  return `${head('Clientes B2B','Clientes frecuentes, crédito y saldo pendiente.',`<button class="primary" onclick="openCliente()">+ Cliente</button>`)}
+  ${sucTabs()}
+  <div class="grid4">
+    ${kpi('Clientes',filt.length,'Frecuentes')}
+    ${kpi('Compras históricas',money(filt.reduce((a,b)=>a+b.compras,0)),'Demo')}
+    ${kpi('Crédito autorizado',money(filt.reduce((a,b)=>a+b.credito,0)),'Total')}
+    ${kpi('Saldo pendiente',money(saldo),saldo?'Por cobrar':'Sin saldo')}
+  </div>
+  <div class="card" style="margin-top:13px"><h3>Clientes</h3><div class="table-wrap"><table>
+    <thead><tr><th>Cliente</th><th>Contacto</th><th>Sucursal</th><th>Compras</th><th>Crédito</th><th>Saldo</th><th>Acción</th></tr></thead>
+    <tbody>${filt.map(x=>{let i=S.clientesB2B.indexOf(x);return `<tr><td style="font-weight:700">${x.nombre}</td><td>${x.contacto}</td><td>${sucBadge(x.sucursal)}</td><td>${money(x.compras)}</td><td>${money(x.credito)}</td><td style="font-weight:700;color:${x.saldo?'var(--amber)':'var(--green)'}">${money(x.saldo)}</td><td>${x.saldo?`<button class="secondary" onclick="openAbono(${i})">Registrar abono</button>`:'Al día'}</td></tr>`}).join('')}</tbody>
+  </table></div></div>`;
+}
+function openCliente(){openModal('Nuevo cliente B2B',`<div class="form-grid">
+  <div class="field full"><label>Empresa / cliente</label><input id="b_nombre"></div>
+  <div class="field"><label>Contacto</label><input id="b_contacto"></div>
+  <div class="field"><label>Sucursal</label><select id="b_suc"><option>Granjero</option><option>Troncoso</option></select></div>
+  <div class="field"><label>Crédito autorizado</label><input id="b_credito" type="number" value="0"></div>
+  <div class="field"><label>Saldo inicial</label><input id="b_saldo" type="number" value="0"></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveCliente()">Guardar cliente</button></div>`);}
+function saveCliente(){S.clientesB2B.unshift({nombre:b_nombre.value,contacto:b_contacto.value,sucursal:b_suc.value,compras:0,credito:+b_credito.value,saldo:+b_saldo.value});save();closeModal();toast('Cliente guardado ✓');render('clientes');}
+function openAbono(i){let x=S.clientesB2B[i];openModal(`Registrar abono · ${x.nombre}`,`<div class="callout">Saldo actual: <b>${money(x.saldo)}</b></div><div class="form-grid"><div class="field"><label>Fecha</label><input id="ab_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div class="field"><label>Método</label><select id="ab_metodo"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>Cheque</option></select></div><div class="field full"><label>Abono</label><input id="ab_monto" type="number" max="${x.saldo}" value="${x.saldo}"></div></div><div style="margin-top:16px"><button class="primary" onclick="saveAbono(${i})">Registrar abono</button></div>`);}
+function saveAbono(i){let x=S.clientesB2B[i],m=Math.min(+ab_monto.value||0,x.saldo);x.saldo=Math.max(0,x.saldo-m);S.cobranzas.unshift({fecha:ab_fecha.value,creditoId:'B2B',cliente:x.nombre,sucursal:x.sucursal,metodo:ab_metodo.value,monto:m});S.activity.unshift({texto:`Abono B2B ${money(m)} · ${x.nombre} · ${ab_metodo.value}`,suc:'sys',ts:'Ahora'});save();closeModal();toast('Abono registrado ✓');render('clientes');}
+// ══ CRÉDITO / COBRANZA ══
+function credito(){
+  if(!allowed('clientes'))return denied();
+  let creds=filterSuc(S.creditos||[]), saldoAsignado=creds.reduce((a,b)=>a+(+b.saldo||0),0);
+  let p=getReportPeriod(), cob=filterPeriod(S.cobranzas||[],'fecha',p), cobTotal=cob.reduce((a,b)=>a+(+b.monto||0),0);
+  let sinAsignarRows=filterSuc(S.ventas).filter(x=>x.origen!=='servicio'&&ventaCreditoSinAsignar(x)>0.009);
+  let sinAsignarTotal=sinAsignarRows.reduce((a,x)=>a+ventaCreditoSinAsignar(x),0);
+  return `${head('Crédito / Cobranza','La venta a crédito se separa del dinero recibido. Cuando el cliente paga, el abono entra a cobranza — una sola vez, sin importar la forma de pago.',`<button class="secondary" onclick="exportarCobranza()">Exportar cobranza</button><button class="primary" onclick="openCredito()">+ Crédito manual</button>`)}
+  ${sucTabs()}
+  <div class="grid4">
+    ${kpi('Saldo por cobrar total',money(saldoAsignado+sinAsignarTotal),'Asignado + sin asignar')}
+    ${kpi('Sin asignar a cliente',money(sinAsignarTotal),sinAsignarRows.length?'Revisar':'Al día')}
+    ${kpi('Cobrado en período',money(cobTotal),periodLabel(p))}
+    ${kpi('Créditos liquidados',creds.filter(x=>x.saldo<=0).length,'Histórico mostrado')}
+  </div>
+  ${sinAsignarRows.length?`<div class="card" style="margin-top:13px"><h3>Crédito de SICAR sin asignar a cliente</h3><p style="font-size:11px;color:var(--muted);margin:-8px 0 13px">Cada corte diario trae un total de crédito generado, pero SICAR no dice a qué cliente pertenece. Asígnalo aquí para que quede como cuenta por cobrar real; mientras tanto ya cuenta en "Saldo por cobrar total" para que el Director no pierda de vista el dinero.</p><div class="table-wrap"><table>
+    <thead><tr><th>Fecha</th><th>Sucursal</th><th>Crédito del corte</th><th>Sin asignar</th><th>Acción</th></tr></thead>
+    <tbody>${sinAsignarRows.map(x=>{let i=S.ventas.indexOf(x);return `<tr><td>${x.fecha}</td><td>${sucBadge(x.sucursal)}</td><td>${money(ventaCredito(x))}</td><td style="font-weight:800;color:var(--amber)">${money(ventaCreditoSinAsignar(x))}</td><td><button class="secondary" onclick="openAsignarCredito(${i})">Asignar a cliente</button></td></tr>`}).join('')}</tbody>
+  </table></div></div>`:''}
+  <div class="card" style="margin-top:13px"><h3>Cuentas por cobrar</h3><div class="table-wrap"><table>
+    <thead><tr><th>Crédito</th><th>Fecha</th><th>Cliente</th><th>Sucursal</th><th>Original</th><th>Saldo</th><th>Estado</th><th>Acción</th></tr></thead>
+    <tbody>${creds.map(x=>{let i=S.creditos.indexOf(x);return `<tr><td><b>${x.id}</b></td><td>${x.fecha}</td><td>${x.cliente}</td><td>${sucBadge(x.sucursal)}</td><td>${money(x.monto)}</td><td style="font-weight:800;color:${x.saldo>0?'var(--amber)':'var(--green)'}">${money(x.saldo)}</td><td>${statusBadge(x.saldo>0?'Pendiente':'Pagada')}</td><td>${x.saldo>0?`<button class="secondary" onclick="openCobroCredito(${i})">Registrar abono</button>`:'Al día'}</td></tr>`}).join('')}</tbody>
+  </table></div></div>
+  <div class="card" style="margin-top:13px"><h3>Cobranza del período</h3><div class="table-wrap"><table>
+    <thead><tr><th>Fecha</th><th>Cliente</th><th>Crédito</th><th>Sucursal</th><th>Método</th><th>Monto</th></tr></thead>
+    <tbody>${cob.length?cob.map(x=>`<tr><td>${x.fecha}</td><td>${x.cliente}</td><td>${x.creditoId||'—'}</td><td>${sucBadge(x.sucursal)}</td><td>${x.metodo}</td><td style="font-weight:800">${money(x.monto)}</td></tr>`).join(''):'<tr><td colspan="6" style="color:var(--muted)">Sin cobranza en el período.</td></tr>'}</tbody>
+  </table></div></div>`;
+}
+function openAsignarCredito(i){
+  let x=S.ventas[i],restante=ventaCreditoSinAsignar(x);
+  openModal('Asignar crédito a cliente',`<div class="callout">Corte del ${x.fecha} · ${x.sucursal} — crédito sin asignar: <b>${money(restante)}</b></div><div class="form-grid">
+  <div class="field full"><label>Cliente</label><input id="ac_cliente" placeholder="Nombre del cliente"></div>
+  <div class="field"><label>Monto a asignar</label><input id="ac_monto" type="number" step="0.01" max="${restante}" value="${restante}"><small style="color:var(--muted)">Si el crédito del día es de varios clientes, asígnalo por partes.</small></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveAsignarCredito(${i})">Crear cuenta por cobrar</button></div>`);
+}
+function saveAsignarCredito(i){
+  let x=S.ventas[i],restante=ventaCreditoSinAsignar(x),m=Math.min(+ac_monto.value||0,restante);
+  if(m<=0||!ac_cliente.value.trim())return toast('Captura cliente y un monto válido');
+  let n=(S.creditos||[]).length+1001;
+  S.creditos.unshift({id:'CR-'+n,cliente:ac_cliente.value.trim(),fecha:x.fecha,sucursal:x.sucursal,monto:m,saldo:m,estado:'Pendiente'});
+  x.creditoAsignado=(+x.creditoAsignado||0)+m;
+  S.activity.unshift({texto:`Crédito del corte ${x.fecha} asignado a ${ac_cliente.value.trim()} · ${money(m)}`,suc:'sys',ts:'Ahora'});
+  save();closeModal();toast('Cuenta por cobrar creada ✓');render('credito');
+}
+function openCredito(){openModal('Registrar crédito manual',`<div class="callout">Úsalo solo para crédito que NO viene de un corte de SICAR — por ejemplo un acuerdo informal directo con el cliente.</div><div class="form-grid">
+  <div class="field"><label>Fecha</label><input id="cr_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+  <div class="field"><label>Sucursal</label><select id="cr_suc"><option>Granjero</option><option>Troncoso</option></select></div>
+  <div class="field full"><label>Cliente</label><input id="cr_cliente"></div>
+  <div class="field"><label>Monto</label><input id="cr_monto" type="number" step="0.01"></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveCredito()">Guardar crédito</button></div>`)}
+function saveCredito(){let n=(S.creditos||[]).length+1001,m=+cr_monto.value||0;S.creditos.unshift({id:'CR-'+n,cliente:cr_cliente.value,fecha:cr_fecha.value,sucursal:cr_suc.value,monto:m,saldo:m,estado:'Pendiente'});save();closeModal();toast('Crédito registrado ✓');render('credito')}
+function openCobroCredito(i){let x=S.creditos[i];openModal(`Registrar abono · ${x.cliente}`,`<div class="callout">Saldo actual: <b>${money(x.saldo)}</b> · ${x.id}</div><div class="form-grid">
+  <div class="field"><label>Fecha</label><input id="cc_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+  <div class="field"><label>Método</label><select id="cc_metodo"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>Cheque</option></select></div>
+  <div class="field full"><label>Monto</label><input id="cc_monto" type="number" step="0.01" max="${x.saldo}" value="${x.saldo}"></div>
+</div><div style="margin-top:16px"><button class="primary" onclick="saveCobroCredito(${i})">Registrar abono</button></div>`)}
+function saveCobroCredito(i){let x=S.creditos[i],m=Math.min(+cc_monto.value||0,x.saldo);if(m<=0)return toast('Capture un monto válido');x.saldo=Math.max(0,x.saldo-m);x.estado=x.saldo?'Pendiente':'Pagado';S.cobranzas.unshift({fecha:cc_fecha.value,creditoId:x.id,cliente:x.cliente,sucursal:x.sucursal,metodo:cc_metodo.value,monto:m});let cli=S.clientesB2B.find(c=>c.nombre===x.cliente);if(cli)cli.saldo=Math.max(0,(+cli.saldo||0)-m);S.activity.unshift({texto:`Cobranza ${money(m)} · ${x.cliente} · ${cc_metodo.value}`,suc:'sys',ts:'Ahora'});save();closeModal();toast('Abono registrado ✓');render('credito')}
+
+// ══ SUCURSALES ══
+function sucursales(){
+  if(!allowed('ventas'))return denied();
+  let vG=S.ventas.filter(x=>x.sucursal==='Granjero'),vT=S.ventas.filter(x=>x.sucursal==='Troncoso');
+  let cortesG=vG.filter(x=>x.origen!=='servicio'),cortesT=vT.filter(x=>x.origen!=='servicio');
+  let genG=cortesG.reduce((a,b)=>a+ventaGenerada(b),0),genT=cortesT.reduce((a,b)=>a+ventaGenerada(b),0);
+  let recG=vG.reduce((a,b)=>a+ventaRecibido(b),0),recT=vT.reduce((a,b)=>a+ventaRecibido(b),0);
+  let grand=(recG+recT)||1;
+  let svG=S.servicio.filter(x=>x.sucursal==='Granjero'),svT=S.servicio.filter(x=>x.sucursal==='Troncoso');
+
+  return `${head('Comparativo de Sucursales','Granjero vs Troncoso — visión unificada.')}
+  <div class="grid2" style="margin-bottom:13px">
+    <div class="card" style="border-top:3px solid var(--granjero)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span class="badge b-g">● GRANJERO</span><span style="font-size:10px;color:var(--muted)">C. Capulín #6009</span></div>
+      <div class="grid2">${kpi('Venta generada',money(genG),'SICAR · Período','')}${kpi('Recibido',money(recG),'Incluye Servicio','')}${kpi('Cortes',cortesG.length,'','')}${kpi('Órdenes SV',svG.length,'Servicio','')}</div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--troncoso)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span class="badge b-t">● TRONCOSO</span><span style="font-size:10px;color:var(--muted)">Av. Santiago Troncoso #1572</span></div>
+      <div class="grid2">${kpi('Venta generada',money(genT),'SICAR · Período','')}${kpi('Recibido',money(recT),'Incluye Servicio','')}${kpi('Cortes',cortesT.length,'','')}${kpi('Órdenes SV',svT.length,'Servicio','')}</div>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:13px">
+    <h3>Participación en dinero recibido</h3>
+    <div class="bar-row"><span style="color:var(--granjero);font-weight:700">● Granjero</span><div class="bar"><div class="bar-g" style="width:${Math.round(recG/grand*100)}%"></div></div><span>${money(recG)} · ${Math.round(recG/grand*100)}%</span></div>
+    <div class="bar-row"><span style="color:var(--troncoso);font-weight:700">● Troncoso</span><div class="bar"><div class="bar-t" style="width:${Math.round(recT/grand*100)}%"></div></div><span>${money(recT)} · ${Math.round(recT/grand*100)}%</span></div>
+  </div>
+  <div class="card">${tablaVentas(cortesG.concat(cortesT).sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,8))}</div>`;
+}
+
+// ══ EXCEL ══
+function excel(){
+  return `${head('Excel / Importar','Puente entre los archivos actuales y el sistema.')}
+  <div class="callout"><b>La idea:</b> mientras los reportes sigan en Excel, se importan aquí sin doble captura. Cuando un área pase a captura directa, el Excel queda solo para exportar o respaldo.</div>
+  <div class="grid3">
+    <div class="card"><h3>1. Importar Excel</h3><p style="font-size:11px;color:var(--muted);line-height:1.5">Se toma el archivo que ya llenan, sea de ventas, facturación, finanzas, nómina o compras, y se pasan sus columnas al área correspondiente.</p><input type="file" accept=".xlsx,.xls,.csv" onchange="fakeImport(this)"></div>
+    <div class="card"><h3>2. Captura directa</h3><p style="font-size:11px;color:var(--muted);line-height:1.5">Cada área captura aquí una sola vez y el dashboard se actualiza.</p><span class="badge b-green">Sin doble trabajo</span></div>
+    <div class="card"><h3>3. Exportar</h3><p style="font-size:11px;color:var(--muted);line-height:1.5">Si alguien necesita Excel, se genera desde el sistema.</p><button class="secondary" onclick="toast('Exportación simulada ✓')">Exportar demo</button></div>
+  </div>`;
+}
+function fakeImport(input){if(input.files&&input.files[0])toast(`Demo: ${input.files[0].name} listo para mapear`)}
+
+// ══ PERMISOS ══
+function permisos(){
+  if(role!=='direccion')return denied();
+  return `${head('Usuarios y permisos','Cada persona ve lo necesario para hacer su trabajo, sin exponer información que no le corresponde.')}
+  <div class="permissions">
+    <div class="perm" style="border-top:3px solid var(--navy)"><b>Director</b><span>✓ Todo el negocio<br>✓ Ganancia/pérdida y flujo<br>✓ Ambas sucursales<br>✓ Crédito, Finanzas y Servicio<br>✓ Evidencias SICAR</span></div>
+    <div class="perm" style="border-top:3px solid var(--granjero)"><b>Ventas · Granjero</b><span>✓ Captura corte diario Granjero<br>✓ Adjunta SICAR<br>✓ Consulta inventario<br>✕ No ve Finanzas</span></div>
+    <div class="perm" style="border-top:3px solid var(--troncoso)"><b>Ventas · Troncoso</b><span>✓ Captura corte diario Troncoso<br>✓ Adjunta SICAR<br>✓ Consulta inventario<br>✕ No ve Finanzas</span></div>
+    <div class="perm" style="border-top:3px solid var(--green)"><b>Finanzas / Administración</b><span>✓ Ve cortes consolidados<br>✓ Registra egresos<br>✓ Nómina, comisiones y compras<br>✓ Crédito / cobranza<br>✓ Reportes</span></div>
+    <div class="perm" style="border-top:3px solid var(--makita)"><b>Centro de Servicio <span class="makita-badge">MAKITA</span></b><span>✓ Recibir, diagnosticar, cotizar y reparar<br>✓ Entrega y cobro<br>✓ Historial<br>✓ Imprimir etiqueta<br>✕ No ve Finanzas</span></div>
+  </div>`;
+}
+// ══ UTILS ══
+function cerrarSesion(){
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('login').classList.remove('hidden');
+  document.getElementById('roleSelect').value='direccion';
+  role='direccion';currentSuc='all';
+}
+function openModal(title,body){document.getElementById('modal').innerHTML=`<div class="modal"><div class="modal-head"><b>${title}</b><button class="secondary" onclick="closeModal()">✕</button></div>${body}</div>`;document.getElementById('modal').classList.remove('hidden')}
+function closeModal(){document.getElementById('modal').classList.add('hidden')}
+function render(page){
+  const map={home,ventas,facturacion,inventario,servicio,servicio_stats,ml,oportunidades,finanzas,credito,nomina,comisiones,compras,clientes,sucursales,excel,permisos};
+  document.getElementById('view').innerHTML=(map[page]||home)();
+}
+</script>
+</body>
+</html>
