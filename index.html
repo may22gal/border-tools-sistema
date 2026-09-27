@@ -501,7 +501,7 @@ const ALL_PAGES=['home','ventas','ventas_admin','mano_obra','sucursales','servic
 const PERMS={
   direccion:ALL_PAGES,
   ventas_g:['home','ventas','ventas_admin','mano_obra','servicio','credito','clientes','oportunidades','inventario'],
-  ventas_t:['home','ventas','ventas_admin','mano_obra','servicio','credito','clientes','oportunidades','inventario'],
+  ventas_t:['home','ventas','ventas_admin','mano_obra','servicio','clientes','oportunidades','inventario'],
   finanzas:['home','ventas','ventas_admin','mano_obra','sucursales','credito','caja','finanzas','reportes','facturacion','compras','clientes','nomina','comisiones','excel'],
   facturacion:['home','facturacion','credito','clientes','excel'],
   ecommerce:['home','inventario','ml','oportunidades','excel'],
@@ -519,7 +519,7 @@ const ACTIONS={
 };
 // ── Página → módulo que el Director puede apagar ──
 const MODULE_OF={ventas:'ventas',ventas_admin:'administracionVentas',mano_obra:'manoObra',sucursales:'comparativo',servicio:'diagnostico',servicio_stats:'diagnostico',credito:'credito',caja:'caja',finanzas:'finanzas',reportes:'reportes',facturacion:'facturacion',inventario:'inventario',ml:'ecommerce',oportunidades:'oportunidades',compras:'compras',clientes:'clientes',nomina:'nomina',comisiones:'comisiones'};
-const MODULE_LABELS={ventas:'Ventas · cortes SICAR',administracionVentas:'Administración de ventas',manoObra:'Mano de obra',comparativo:'Comparativo de sucursales',diagnostico:'Centro de Diagnóstico',credito:'Crédito / Cobranza',caja:'Caja 1 / Corte',finanzas:'Finanzas',reportes:'Reportes',facturacion:'Facturación',inventario:'Inventario',ecommerce:'Mercado Libre',oportunidades:'Oportunidades',compras:'Compras',clientes:'Clientes B2B',nomina:'Nómina',comisiones:'Comisiones'};
+const MODULE_LABELS={ventas:'Ventas · cortes SICAR',administracionVentas:'Administración de ventas',manoObra:'Mano de obra',comparativo:'Comparativo de sucursales',diagnostico:'Centro de Diagnóstico',credito:'Crédito / Cobranza',caja:'Caja por sucursal / Corte',finanzas:'Finanzas',reportes:'Reportes',facturacion:'Facturación',inventario:'Inventario',ecommerce:'Mercado Libre',oportunidades:'Oportunidades',compras:'Compras',clientes:'Clientes B2B',nomina:'Nómina',comisiones:'Comisiones'};
 
 // ESTADOS DEL SERVICIO: Recibida → Diagnóstico → Cotizada → Autorizada → En reparación → Lista → Entregada · (o Rechazada)
 const ESTADOS=['Recibida','Diagnóstico','Cotizada','Autorizada','En reparación','Lista','Entregada','Rechazada'];
@@ -1385,7 +1385,7 @@ function caja(){
   S.egresos.filter(x=>inReportRange(x.fecha,p)&&egresoCaja(x,suc)>0).forEach(x=>moves.push({fecha:x.fecha,sucursal:egresoCajaSuc(x),tipo:'Egreso',concepto:x.concepto,monto:-(+x.monto)}));
   S.cajaMovimientos.filter(x=>inReportRange(x.fecha,p)&&(!suc||x.sucursal===suc)).forEach(x=>moves.push({fecha:x.fecha,sucursal:x.sucursal,tipo:x.tipo==='Entrada'?'Entrada manual':'Salida manual',concepto:x.concepto,monto:movEfectivo(x)}));
   moves.sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  return `${head('Caja 1 / Corte','Cada sucursal tiene su propia Caja 1. Aquí solo se concilia efectivo físico: tarjeta y transferencia no entran a la caja.',`${can('corteCaja')?`<button class="secondary" onclick="openMovimientoCaja()">+ Movimiento de efectivo</button><button class="primary" onclick="openCorteCaja()">+ Hacer corte</button>`:''}`)}
+  return `${head('Caja de sucursal / Corte','Cada sucursal tiene su propia Caja 1. Aquí solo se concilia efectivo físico: tarjeta y transferencia no entran a la caja.',`${can('corteCaja')?`<button class="secondary" onclick="openMovimientoCaja()">+ Movimiento de efectivo</button><button class="primary" onclick="openCorteCaja()">+ Hacer corte</button>`:''}`)}
   ${sucTabs()}${reportControls()}
   <div class="grid4">${kpi('Efectivo recibido',money(t.efectivo),'Ventas + abonos en efectivo')}${kpi('Salidas de caja',money(t.cashOut),'Egresos pagados con esta caja')}${kpi('Movimientos manuales',money(t.manual),'Fondo, retiros, depósitos')}${kpi('Efectivo neto del período',money(t.cashExpected),'Sin fondo inicial')}</div>
   <div class="card" style="margin-top:13px"><h3>Cortes de caja${suc?' · '+suc:''}</h3><div class="table-wrap"><table id="tablaCortes"><thead><tr><th>Fecha</th><th>Sucursal</th><th>Fondo inicial</th><th>Esperado</th><th>Contado</th><th>Diferencia</th><th>Retiro</th><th>Queda en caja</th><th>Responsable</th></tr></thead><tbody>${cortes.map(c=>`<tr><td>${c.fecha}</td><td>${sucBadge(c.sucursal)}</td><td>${moneyC(c.fondo)}</td><td>${moneyC(c.esperado)}</td><td>${moneyC(c.contado)}</td><td style="font-weight:800;color:${Math.abs(c.diferencia)<0.005?'var(--green)':'var(--red)'}">${moneyC(c.diferencia)}</td><td>${moneyC(c.retiro)}</td><td>${moneyC(c.queda)}</td><td>${h(c.responsable)}</td></tr>`).join('')||'<tr><td colspan="9" class="muted">Sin cortes en el período.</td></tr>'}</tbody></table></div></div>
@@ -1394,7 +1394,7 @@ function caja(){
 function openCorteCaja(){
   if(!can('corteCaja'))return toast('Tu usuario no hace cortes de caja');
   const suc=sucName()||'Granjero',fecha=todayBiz();
-  openModal('Corte de Caja 1',`<div class="callout"><b>El sistema calcula, tú cuentas.</b> Esperado = fondo inicial + efectivo de ventas y abonos − salidas de caja ± movimientos. El esperado se recalcula al cambiar fecha o sucursal.</div>
+  openModal('Corte de Caja 1 · '+suc,`<div class="callout"><b>El sistema calcula, tú cuentas.</b> Esperado = fondo inicial + efectivo de ventas y abonos − salidas de caja ± movimientos. El esperado se recalcula al cambiar fecha o sucursal.</div>
   <div class="form-grid">
     <div class="field"><label>Fecha</label><input id="ccx_fecha" type="date" value="${fecha}"></div>
     <div class="field"><label>Sucursal</label><select id="ccx_suc">${SUCURSALES.map(s=>`<option ${s===suc?'selected':''}>${s}</option>`).join('')}</select></div>
@@ -1429,7 +1429,7 @@ function saveCorteCaja(){
 }
 function openMovimientoCaja(){
   if(!can('corteCaja'))return toast('Tu usuario no mueve caja');
-  openModal('Movimiento de efectivo · Caja 1',`<div class="callout">Para dinero que entra o sale de la caja física sin ser venta ni gasto: fondo de caja, depósito al banco, retiro de Dirección. <b>Los gastos se registran como egreso en Finanzas.</b></div>
+  openModal('Movimiento de efectivo · Caja 1 · '+(sucName()||'Granjero'),`<div class="callout">Para dinero que entra o sale de la caja física sin ser venta ni gasto: fondo de caja, depósito al banco, retiro de Dirección. <b>Los gastos se registran como egreso en Finanzas.</b></div>
   <div class="form-grid"><div class="field"><label>Fecha</label><input id="cmx_fecha" type="date" value="${todayBiz()}"></div><div class="field"><label>Sucursal</label><select id="cmx_suc">${SUCURSALES.map(s=>`<option ${s===(sucName()||'Granjero')?'selected':''}>${s}</option>`).join('')}</select></div>
   <div class="field"><label>Tipo</label><select id="cmx_tipo"><option>Entrada</option><option>Salida</option></select></div><div class="field"><label>Monto en efectivo</label><input id="cmx_monto" type="number" step="0.01"></div>
   <div class="field full"><label>Concepto</label><input id="cmx_concepto" placeholder="Ej. depósito a banco / fondo de caja"></div></div>
@@ -1617,7 +1617,7 @@ function permisos(){
   <div class="permissions" style="margin-top:13px">
     ${roleCard('direccion','navy','✓ Todo el negocio, ambas sucursales<br>✓ Confirma transferencias<br>✓ Enciende y apaga módulos')}
     ${roleCard('ventas_g','granjero','✓ Corte diario SICAR de Granjero<br>✓ Centro de Diagnóstico de Granjero<br>✓ Ve crédito y clientes de su sucursal<br>✕ No ve caja, finanzas ni Troncoso')}
-    ${roleCard('ventas_t','troncoso','✓ Corte diario SICAR de Troncoso<br>✓ Centro de Diagnóstico de Troncoso<br>✓ Ve crédito y clientes de su sucursal<br>✕ No ve caja, finanzas ni Granjero')}
+    ${roleCard('ventas_t','troncoso','✓ Corte diario SICAR de Troncoso<br>✓ Centro de Diagnóstico de Troncoso<br>✓ Ve clientes de su sucursal<br>✕ No ve crédito, caja, finanzas ni Granjero')}
     ${roleCard('finanzas','green','✓ Caja, cortes y egresos<br>✓ Abonos y crédito<br>✓ Nómina, comisiones, compras<br>✓ Reportes')}
     ${roleCard('servicio','makita','✓ Órdenes de ambas sucursales<br>✓ Diagnóstico, cotización, entrega<br>✕ No ve finanzas')}
     ${roleCard('facturacion','blue','✓ Facturas<br>✓ Registra abonos<br>✕ No ve caja')}
