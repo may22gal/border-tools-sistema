@@ -967,7 +967,7 @@ function enter(){
   document.getElementById('login').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   currentSuc=lockedSuc()||'all';reportView='mensual';
-  applyPerms();render('home');
+  applyPerms();render('home');actualizarNotif();
 }
 function cerrarSesion(){
   closeModal();
