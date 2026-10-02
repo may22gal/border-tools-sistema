@@ -784,7 +784,7 @@ function reportControls(){
 // · Dinero cobrado = ventas cobradas del corte (efectivo + tarjeta + transferencias que cuentan) + abonos de crédito. Cada abono se cuenta una vez.
 // · El servicio (diagnóstico y reparación) se cobra en SICAR: aparece dentro del corte y NO se suma otra vez.
 // · Egreso "Ambas": cuenta completo en el consolidado y 50/50 al ver una sucursal. Solo baja la caja física que lo pagó.
-// · Formas de pago válidas: Efectivo, Transferencia y Tarjeta. Cualquier otra queda fuera y se marca para corregir.
+// · Formas de pago válidas: Efectivo, Transferencia, Tarjeta y Cheque. El cheque se muestra separado y no se considera efectivo físico.
 function transferCuenta(x){const st=x.transferenciaStatus||'Aprobada';if(st==='Rechazada')return false;return S.config.requireTransferApproval?st==='Aprobada':true}
 function metodoValido(m){return METODOS.includes(m)}
 function abonoCuenta(x){if(!metodoValido(x.metodo))return false;return x.metodo==='Transferencia'?transferCuenta(x):true}
@@ -795,10 +795,10 @@ function movEfectivo(x){return (Number(x.entrada)||0)-(Number(x.salida)||0)}
 function ventasDe(p,suc){return S.ventas.filter(x=>inReportRange(x.fecha,p)&&(!suc||x.sucursal===suc))}
 function abonosDe(p,suc){return S.cobranzas.filter(x=>inReportRange(x.fecha,p)&&(!suc||x.sucursal===suc))}
 function btTotals(p,suc){
-  const t={ventas:0,mano:0,credito:0,vEf:0,vTr:0,vTa:0,aEf:0,aTr:0,aTa:0,trPend:0,trPendN:0,trRech:0,abInval:0,abInvalN:0,egresos:0,cashOut:0,manual:0};
+  const t={ventas:0,mano:0,credito:0,vEf:0,vTr:0,vTa:0,vCh:0,aEf:0,aTr:0,aTa:0,aCh:0,trPend:0,trPendN:0,trRech:0,abInval:0,abInvalN:0,egresos:0,cashOut:0,manual:0};
   ventasDe(p,suc).forEach(x=>{
     t.ventas+=Number(x.totalVentaSicar)||0;t.mano+=Number(x.manoObra)||0;t.credito+=Number(x.credito)||0;
-    t.vEf+=Number(x.efectivo)||0;t.vTa+=Number(x.tarjeta)||0;
+    t.vEf+=Number(x.efectivo)||0;t.vTa+=Number(x.tarjeta)||0;t.vCh+=Number(x.cheque)||0;
     const tr=Number(x.transferencia)||0;
     if(tr&&transferCuenta(x))t.vTr+=tr;
     if(tr&&x.transferenciaStatus==='Pendiente'){t.trPend+=tr;t.trPendN++}
@@ -810,13 +810,13 @@ function btTotals(p,suc){
     if(x.metodo==='Transferencia'&&x.transferenciaStatus==='Pendiente'){t.trPend+=m;t.trPendN++}
     if(x.metodo==='Transferencia'&&x.transferenciaStatus==='Rechazada')t.trRech+=m;
     if(!abonoCuenta(x))return;
-    if(x.metodo==='Efectivo')t.aEf+=m;else if(x.metodo==='Transferencia')t.aTr+=m;else t.aTa+=m;
+    if(x.metodo==='Efectivo')t.aEf+=m;else if(x.metodo==='Transferencia')t.aTr+=m;else if(x.metodo==='Tarjeta')t.aTa+=m;else if(x.metodo==='Cheque')t.aCh+=m;
   });
   S.egresos.filter(x=>inReportRange(x.fecha,p)).forEach(x=>{t.egresos+=egresoAsignado(x,suc);t.cashOut+=egresoCaja(x,suc)});
   S.cajaMovimientos.filter(x=>inReportRange(x.fecha,p)&&(!suc||x.sucursal===suc)).forEach(x=>{t.manual+=movEfectivo(x)});
   t.productos=Math.max(0,t.ventas-t.mano);
-  t.efectivo=t.vEf+t.aEf;t.transferencia=t.vTr+t.aTr;t.tarjeta=t.vTa+t.aTa;
-  t.ventasCobradas=t.vEf+t.vTr+t.vTa;t.cobranza=t.aEf+t.aTr+t.aTa;
+  t.efectivo=t.vEf+t.aEf;t.transferencia=t.vTr+t.aTr;t.tarjeta=t.vTa+t.aTa;t.cheque=t.vCh+t.aCh;
+  t.ventasCobradas=t.vEf+t.vTr+t.vTa+t.vCh;t.cobranza=t.aEf+t.aTr+t.aTa+t.aCh;
   t.received=t.ventasCobradas+t.cobranza;
   t.cashExpected=t.efectivo-t.cashOut+t.manual;
   t.flujo=t.received-t.egresos;
@@ -838,10 +838,10 @@ function dineroDisponible(suc){
 // Mano de obra: una sola función para todas las pantallas.
 // SICAR no dice con qué se pagó la mano de obra; se reparte en proporción a cómo se pagó el corte.
 function manoPorMetodo(ventas){
-  const r={Efectivo:0,Transferencia:0,Tarjeta:0,'Crédito':0,'Sin dato':0,total:0};
+  const r={Efectivo:0,Transferencia:0,Tarjeta:0,Cheque:0,'Crédito':0,'Sin dato':0,total:0};
   ventas.forEach(x=>{
     const m=Number(x.manoObra)||0;if(m<=0)return;r.total+=m;
-    const parts={Efectivo:+x.efectivo||0,Transferencia:+x.transferencia||0,Tarjeta:+x.tarjeta||0,'Crédito':+x.credito||0};
+    const parts={Efectivo:+x.efectivo||0,Transferencia:+x.transferencia||0,Tarjeta:+x.tarjeta||0,Cheque:+x.cheque||0,'Crédito':+x.credito||0};
     const base=Object.values(parts).reduce((a,b)=>a+b,0);
     if(base<=0){r['Sin dato']+=m;return}
     Object.keys(parts).forEach(k=>{r[k]+=m*parts[k]/base});
@@ -851,7 +851,7 @@ function manoPorMetodo(ventas){
 }
 function manoDeCorte(x){return manoPorMetodo([x])}
 // Cuadre del corte contra el Total Venta de SICAR
-function cuadreCorte(x){const suma=(+x.efectivo||0)+(+x.transferencia||0)+(+x.tarjeta||0)+(+x.credito||0);return r2((+x.totalVentaSicar||0)-suma)}
+function cuadreCorte(x){const suma=(+x.efectivo||0)+(+x.transferencia||0)+(+x.tarjeta||0)+(+x.cheque||0)+(+x.credito||0);return r2((+x.totalVentaSicar||0)-suma)}
 
 // ── Servicio: dinero clasificado (ya incluido en SICAR, nunca se suma aparte) ──
 function svDiag(x){return Number(x.diagnosticoCobrado)||0}
@@ -1053,9 +1053,9 @@ function ventas(){
 }
 function tablaVentas(rows,titulo='Cortes diarios'){
   return `<div class="card"><h3>${titulo}</h3><div class="table-wrap"><table>
-    <thead><tr><th>Fecha</th><th>Sucursal</th><th>Efectivo</th><th>Transferencia</th><th>Tarjeta</th><th>Crédito</th><th>Venta SICAR</th><th>Cuadre SICAR</th><th>Servicio (incl.)</th><th>Evidencia</th></tr></thead>
+    <thead><tr><th>Fecha</th><th>Sucursal</th><th>Efectivo</th><th>Transferencia</th><th>Tarjeta</th><th>Cheque</th><th>Crédito</th><th>Venta SICAR</th><th>Cuadre SICAR</th><th>Servicio (incl.)</th><th>Evidencia</th></tr></thead>
     <tbody>${rows.length?rows.map(x=>{const i=S.ventas.indexOf(x),dif=cuadreCorte(x),st=x.transferenciaStatus||'Aprobada';
-      return `<tr><td>${x.fecha}</td><td>${sucBadge(x.sucursal)}</td><td>${moneyC(x.efectivo||0)}</td><td>${moneyC(x.transferencia||0)}${(+x.transferencia&&st!=='Aprobada')?` ${statusBadge(st)}`:''}</td><td>${moneyC(x.tarjeta||0)}</td><td style="color:var(--amber);font-weight:700">${moneyC(x.credito||0)}</td><td style="font-weight:800">${moneyC(x.totalVentaSicar||0)}</td><td>${Math.abs(dif)<0.02?statusBadge('Cuadra'):`<span class="badge b-amber">Dif. ${moneyC(dif)}</span>`}</td><td style="color:var(--makita);font-weight:700">${moneyC(servicioDelDia(x.fecha,x.sucursal))}</td><td>${x.sicarArchivo?`<button class="secondary" onclick="openSicar(${i})">📎 ${h(x.sicarArchivo)}</button>`:'<span class="evidence missing">⚠ Sin PDF</span>'}</td></tr>`}).join(''):'<tr><td colspan="10" class="muted">Sin cortes en el período.</td></tr>'}</tbody>
+      return `<tr><td>${x.fecha}</td><td>${sucBadge(x.sucursal)}</td><td>${moneyC(x.efectivo||0)}</td><td>${moneyC(x.transferencia||0)}${(+x.transferencia&&st!=='Aprobada')?` ${statusBadge(st)}`:''}</td><td>${moneyC(x.tarjeta||0)}</td><td>${moneyC(x.cheque||0)}</td><td style="color:var(--amber);font-weight:700">${moneyC(x.credito||0)}</td><td style="font-weight:800">${moneyC(x.totalVentaSicar||0)}</td><td>${Math.abs(dif)<0.02?statusBadge('Cuadra'):`<span class="badge b-amber">Dif. ${moneyC(dif)}</span>`}</td><td style="color:var(--makita);font-weight:700">${moneyC(servicioDelDia(x.fecha,x.sucursal))}</td><td>${x.sicarArchivo?`<button class="secondary" onclick="openSicar(${i})">📎 ${h(x.sicarArchivo)}</button>`:'<span class="evidence missing">⚠ Sin PDF</span>'}</td></tr>`}).join(''):'<tr><td colspan="10" class="muted">Sin cortes en el período.</td></tr>'}</tbody>
   </table></div><div class="small muted" style="margin-top:8px">"Servicio (incl.)" es lo que el Centro de Diagnóstico cobró ese día. Ya viene dentro del Total SICAR; se muestra solo para identificarlo, no se suma otra vez.</div></div>`;
 }
 function openVenta(){
@@ -1075,6 +1075,7 @@ function openVenta(){
     <div class="field"><label>Sucursal</label><select id="v_suc" ${fixed?'disabled':''}>${sucOptions(fixed||defaultSuc())}</select></div>
     <div class="field"><label>Efectivo de ventas</label><input id="v_efectivo" type="number" step="0.01" value="0" oninput="actualizarCuadre()"></div>
     <div class="field"><label>Tarjeta / TPV</label><input id="v_tarjeta" type="number" step="0.01" value="0" oninput="actualizarCuadre()"></div>
+    <div class="field"><label>Cheque</label><input id="v_cheque" type="number" step="0.01" value="0" oninput="actualizarCuadre()"></div>
     <div class="field"><label>Transferencia</label><input id="v_transfer" type="number" step="0.01" value="0" oninput="actualizarCuadre()"></div>
     <div class="field"><label>Estado de la transferencia</label><select id="v_transfer_status"><option value="Aprobada">Confirmada en banco</option><option value="Pendiente">Pendiente de confirmar</option></select></div>
     <div class="field"><label>Venta a crédito del día</label><input id="v_credito" type="number" step="0.01" value="0" oninput="actualizarCuadre()"></div>
@@ -1089,7 +1090,7 @@ function openVenta(){
 function setModoCaptura(m){['pdf','pegar','mano'].forEach(k=>{const t=document.getElementById('mt-'+k),b=document.getElementById('mb-'+k);if(t)t.classList.toggle('active',k===m);if(b)b.classList.toggle('active',k===m)})}
 function actualizarCuadre(){
   const box=document.getElementById('v_cuadre_box');if(!box)return;
-  const suma=num('v_efectivo')+num('v_transfer')+num('v_tarjeta')+num('v_credito'),tot=num('v_sicar_total'),dif=r2(tot-suma);
+  const suma=num('v_efectivo')+num('v_transfer')+num('v_tarjeta')+num('v_cheque')+num('v_credito'),tot=num('v_sicar_total'),dif=r2(tot-suma);
   if(tot===0&&suma===0){box.innerHTML='';return}
   box.innerHTML=Math.abs(dif)<0.02?`<div class="okbox">✓ Cuadra con SICAR: efectivo + tarjeta + transferencia + crédito = Total Venta.</div>`:`<div class="warnbox">⚠ Diferencia de ${moneyC(Math.abs(dif))} contra el Total Venta de SICAR ${dif>0?'(falta capturar)':'(hay de más)'}. Puedes guardar; anótalo en la observación.</div>`;
 }
@@ -1097,7 +1098,7 @@ function parseMonto(s){return parseFloat(String(s).replace(/,/g,''))}
 function parseSicarTotales(text){
   const idx=text.indexOf('Totales por Forma de Pago');const seg=idx>=0?text.slice(idx,idx+1200):text;
   const grab=l=>{const m=seg.match(new RegExp(l+'\\s*:?\\s*\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)','i'));return m?parseMonto(m[1]):null};
-  const out={efectivo:grab('Efectivo'),credito:grab('Cr[eé]dito'),transferencia:grab('Transferencia'),tarjeta:grab('Tarjeta'),totalGeneral:grab('Total\\s*(?:General|Venta)'),
+  const out={efectivo:grab('Efectivo'),credito:grab('Cr[eé]dito'),transferencia:grab('Transferencia'),tarjeta:grab('Tarjeta'),cheque:grab('Cheque'),totalGeneral:grab('Total\\s*(?:General|Venta)'),
     otras:['Cheque','Vales','Anticipo'].map(grab).reduce((a,b)=>a+(b||0),0)};
   if(out.efectivo===null&&out.tarjeta===null&&out.transferencia===null&&out.credito===null&&out.totalGeneral===null)return null;
   return out;
@@ -1105,10 +1106,10 @@ function parseSicarTotales(text){
 function parseManoDeObra(text){let total=0,m;const re=/mano de obra[^\n$]*\$\s*([\d,]+\.\d{2})(?:\s*\$\s*([\d,]+\.\d{2}))?/gi;while((m=re.exec(text))){const v=parseMonto(m[2]!==undefined?m[2]:m[1]);if(!isNaN(v))total+=v}return total}
 function aplicarTotalesSicar(t,texto,statusEl,fuente){
   const set=(id,v)=>{if(v!==null&&v!==undefined){document.getElementById(id).value=v}};
-  set('v_efectivo',t.efectivo);set('v_transfer',t.transferencia);set('v_tarjeta',t.tarjeta);set('v_credito',t.credito);set('v_sicar_total',t.totalGeneral);
+  set('v_efectivo',t.efectivo);set('v_transfer',t.transferencia);set('v_tarjeta',t.tarjeta);set('v_cheque',t.cheque);set('v_credito',t.credito);set('v_sicar_total',t.totalGeneral);
   const mano=parseManoDeObra(texto||'');if(mano>0)set('v_mano',mano);
   const extra=t.otras>0?`<br><span style="color:var(--amber)">⚠ SICAR reporta ${moneyC(t.otras)} en otras formas de pago que el sistema no maneja. Anótalo en la observación; el cuadre mostrará la diferencia.</span>`:'';
-  if(statusEl)statusEl.innerHTML=`<span style="color:var(--green)">✓ Leído ${fuente==='pegado'?'del texto pegado':'del PDF de SICAR'}: Efectivo ${moneyC(t.efectivo||0)}, Tarjeta ${moneyC(t.tarjeta||0)}, Transferencia ${moneyC(t.transferencia||0)}, Crédito ${moneyC(t.credito||0)}${t.totalGeneral!==null?`, Total ${moneyC(t.totalGeneral)}`:''}${mano>0?`, Mano de obra ${moneyC(mano)} (verifícala)`:''}.</span>${extra}`;
+  if(statusEl)statusEl.innerHTML=`<span style="color:var(--green)">✓ Leído ${fuente==='pegado'?'del texto pegado':'del PDF de SICAR'}: Efectivo ${moneyC(t.efectivo||0)}, Tarjeta ${moneyC(t.tarjeta||0)}, Transferencia ${moneyC(t.transferencia||0)}, Cheque ${moneyC(t.cheque||0)}, Crédito ${moneyC(t.credito||0)}${t.totalGeneral!==null?`, Total ${moneyC(t.totalGeneral)}`:''}${mano>0?`, Mano de obra ${moneyC(mano)} (verifícala)`:''}.</span>${extra}`;
   actualizarCuadre();
 }
 function leerTextoPegado(){
@@ -1130,7 +1131,7 @@ async function leerReporteSicar(input){
   }catch(e){console.error(e);st.innerHTML='<span style="color:var(--amber)">⚠ No pude leer este PDF. Usa "Pegar totales" o escríbelos a mano.</span>'}
 }
 async function saveVenta(){
-  const x={id:'V-'+Date.now(),fecha:val('v_fecha'),sucursal:document.getElementById('v_suc').value,responsable:val('v_resp'),efectivo:num('v_efectivo'),transferencia:num('v_transfer'),transferenciaStatus:val('v_transfer_status')||'Aprobada',tarjeta:num('v_tarjeta'),credito:num('v_credito'),creditoAsignado:0,manoObra:num('v_mano'),totalVentaSicar:num('v_sicar_total'),observacion:val('v_obs'),sicarArchivo:''};
+  const x={id:'V-'+Date.now(),fecha:val('v_fecha'),sucursal:document.getElementById('v_suc').value,responsable:val('v_resp'),efectivo:num('v_efectivo'),transferencia:num('v_transfer'),transferenciaStatus:val('v_transfer_status')||'Aprobada',tarjeta:num('v_tarjeta'),cheque:num('v_cheque'),credito:num('v_credito'),creditoAsignado:0,manoObra:num('v_mano'),totalVentaSicar:num('v_sicar_total'),observacion:val('v_obs'),sicarArchivo:''};
   if(!x.fecha)return toast('Captura la fecha del corte');
   if(x.totalVentaSicar<=0)return toast('Captura el Total Venta de SICAR');
   if(x.manoObra>x.totalVentaSicar)return toast('La mano de obra no puede ser mayor que el Total SICAR');
@@ -1528,10 +1529,10 @@ function pintarReporte(){
   const el=document.getElementById('btReportBody');if(!el)return;
   const p=getReportPeriod(),suc=sucName(),t=btTotals(p,suc),pc=porCobrar(suc),k=reportView;let html='';
   if(k==='ventas')html=`<div class="card"><h3>Ventas SICAR · ${periodLabel(p)}</h3><div class="grid4">${kpi('Venta generada',money(t.ventas),'Incluye crédito')}${kpi('Productos',money(t.productos),'SICAR − mano de obra')}${kpi('Mano de obra',money(t.mano),'Concepto separado')}${kpi('Crédito generado',money(t.credito),'Aún no cobrado')}</div></div>`;
-  if(k==='recibido')html=`<div class="card"><h3>Dinero cobrado · ${periodLabel(p)}</h3><div class="grid4">${kpi('Total cobrado',money(t.received),'Una sola vez')}${kpi('Efectivo',money(t.efectivo),'')}${kpi('Tarjeta',money(t.tarjeta),'')}${kpi('Transferencia',money(t.transferencia),S.config.requireTransferApproval?'Solo confirmadas':'Confirmadas y pendientes')}</div><div class="rline" style="margin-top:10px"><span>De ventas del corte</span><b>${money(t.ventasCobradas)}</b></div><div class="rline"><span>De abonos de crédito</span><b>${money(t.cobranza)}</b></div></div>`;
+  if(k==='recibido')html=`<div class="card"><h3>Dinero cobrado · ${periodLabel(p)}</h3><div class="grid4">${kpi('Total cobrado',money(t.received),'Una sola vez')}${kpi('Efectivo',money(t.efectivo),'')}${kpi('Tarjeta',money(t.tarjeta),'')}${kpi('Cheque',money(t.cheque),'')}${kpi('Transferencia',money(t.transferencia),S.config.requireTransferApproval?'Solo confirmadas':'Confirmadas y pendientes')}</div><div class="rline" style="margin-top:10px"><span>De ventas del corte</span><b>${money(t.ventasCobradas)}</b></div><div class="rline"><span>De abonos de crédito</span><b>${money(t.cobranza)}</b></div></div>`;
   if(k==='caja'){const cs=filterPeriod(S.cortesCaja,'fecha',p).filter(c=>!suc||c.sucursal===suc);html=`<div class="card"><h3>Caja / Corte · ${periodLabel(p)}</h3><div class="grid4">${kpi('Efectivo recibido',money(t.efectivo),'')}${kpi('Salidas de caja',money(t.cashOut),'')}${kpi('Movimientos',money(t.manual),'')}${kpi('Cortes con diferencia',cs.filter(c=>Math.abs(c.diferencia)>=0.005).length,`de ${cs.length} cortes`)}</div>${cs.map(c=>`<div class="rline"><span>${c.fecha} · ${c.sucursal}</span><b style="color:${Math.abs(c.diferencia)<0.005?'var(--green)':'var(--red)'}">Dif. ${moneyC(c.diferencia)}</b></div>`).join('')}</div>`}
   if(k==='credito')html=`<div class="card"><h3>Crédito y cobranza</h3><div class="grid3">${kpi('Crédito generado',money(t.credito),'Ventas del período')}${kpi('Abonos',money(t.cobranza),'Cobrados en el período')}${kpi('Por cobrar',money(pc.total),'Estado actual')}</div></div>`;
-  if(k==='mano'){const m=manoPorMetodo(ventasDe(p,suc));html=`<div class="card"><h3>Mano de obra · ${periodLabel(p)}</h3><div class="grid4">${kpi('Total',money(m.total),'')}${kpi('Efectivo',money(m.Efectivo),'')}${kpi('Tarjeta',money(m.Tarjeta),'')}${kpi('Transferencia',money(m.Transferencia),'')}</div>${m['Crédito']>0.009?`<div class="rline"><span>En ventas a crédito</span><b>${money(m['Crédito'])}</b></div>`:''}</div>`}
+  if(k==='mano'){const m=manoPorMetodo(ventasDe(p,suc));html=`<div class="card"><h3>Mano de obra · ${periodLabel(p)}</h3><div class="grid4">${kpi('Total',money(m.total),'')}${kpi('Efectivo',money(m.Efectivo),'')}${kpi('Tarjeta',money(m.Tarjeta),'')}${kpi('Cheque',money(m.Cheque),'')}${kpi('Transferencia',money(m.Transferencia),'')}</div>${m['Crédito']>0.009?`<div class="rline"><span>En ventas a crédito</span><b>${money(m['Crédito'])}</b></div>`:''}</div>`}
   if(k==='servicio'){const sv=filterSuc(S.servicio);html=`<div class="card"><h3>Centro de Diagnóstico</h3><div class="grid4">${kpi('Órdenes',sv.length,'')}${kpi('En proceso',sv.filter(x=>!['Entregada','Rechazada'].includes(x.estado)).length,'')}${kpi('Diagnósticos cobrados',money(sv.reduce((a,x)=>a+svDiag(x),0)),'Ya en SICAR')}${kpi('Reparaciones cobradas',money(sv.filter(x=>x.estado==='Entregada').reduce((a,x)=>a+(+x.cobro||0),0)),'Ya en SICAR')}</div></div>`}
   if(k==='flujo')html=`<div class="card"><h3>Flujo de efectivo · ${periodLabel(p)}</h3><div class="grid3">${kpi('Entradas',money(t.received),'Cobrado')}${kpi('Salidas',money(t.egresos),'Egresos')}${kpi('Flujo neto',money(t.flujo),'No es utilidad')}</div></div>`;
   if(k==='mensual')html=`<div class="card"><h3>Resumen del Director · ${periodLabel(p)}</h3><div class="callout">Se generaron ${money(t.ventas)} en ventas SICAR y se cobraron ${money(t.received)}. Salieron ${money(t.egresos)}. El flujo neto fue ${money(t.flujo)}. Esto <b>no es utilidad</b>.</div><div class="grid4">${kpi('Venta generada',money(t.ventas),'')}${kpi('Dinero cobrado',money(t.received),'')}${kpi('Por cobrar',money(pc.total),'')}${kpi('Flujo neto',money(t.flujo),'')}</div></div>`;
@@ -1609,7 +1610,7 @@ function exportarCSV(nombre,cols,filas){
   const blob=new Blob(['﻿'+cols.join(';')+'\n'+filas.map(f=>f.map(esc).join(';')).join('\n')],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${nombre}_${todayBiz()}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Archivo descargado ✓');
 }
-function exportarCortes(){const p=getReportPeriod();exportarCSV('BT_cortes',['Fecha','Sucursal','Responsable','Efectivo','Transferencia','Estado transferencia','Tarjeta','Credito','Mano de obra','Venta SICAR','Diferencia cuadre','Servicio incluido','Evidencia','Observacion'],filterPeriod(filterSuc(S.ventas),'fecha',p).map(x=>[x.fecha,x.sucursal,x.responsable,r2(x.efectivo),r2(x.transferencia),x.transferenciaStatus,r2(x.tarjeta),r2(x.credito),r2(x.manoObra),r2(x.totalVentaSicar),cuadreCorte(x),servicioDelDia(x.fecha,x.sucursal),x.sicarArchivo||'SIN PDF',x.observacion||'']))}
+function exportarCortes(){const p=getReportPeriod();exportarCSV('BT_cortes',['Fecha','Sucursal','Responsable','Efectivo','Transferencia','Estado transferencia','Tarjeta','Cheque','Credito','Mano de obra','Venta SICAR','Diferencia cuadre','Servicio incluido','Evidencia','Observacion'],filterPeriod(filterSuc(S.ventas),'fecha',p).map(x=>[x.fecha,x.sucursal,x.responsable,r2(x.efectivo),r2(x.transferencia),x.transferenciaStatus,r2(x.tarjeta),r2(x.cheque),r2(x.credito),r2(x.manoObra),r2(x.totalVentaSicar),cuadreCorte(x),servicioDelDia(x.fecha,x.sucursal),x.sicarArchivo||'SIN PDF',x.observacion||'']))}
 function exportarEgresos(){const p=getReportPeriod();exportarCSV('BT_egresos',['Fecha','Concepto','Categoria','Proveedor','Sucursal','Forma de pago','Caja fisica','Monto'],filterPeriod(S.egresos,'fecha',p).map(x=>[x.fecha,x.concepto,x.categoria,x.proveedor,x.sucursal,x.metodo,x.impactaCajaFisica?egresoCajaSuc(x):'No',r2(x.monto)]))}
 function exportarCobranza(){const p=getReportPeriod();exportarCSV('BT_cobranza',['Fecha','Cliente','Credito','Sucursal','Forma de pago','Estado transferencia','Monto'],filterPeriod(filterSuc(S.cobranzas),'fecha',p).map(x=>[x.fecha,x.cliente,x.creditoId||'',x.sucursal,x.metodo,x.transferenciaStatus||'',r2(x.monto)]))}
 
@@ -1621,7 +1622,7 @@ function permisos(){
   <div><div class="card"><h3>Reglas de dinero</h3>
     <label class="toggle-row"><span><b>Confirmar transferencias</b><small>Si está activo, una transferencia pendiente no cuenta como cobrada hasta que el Director la confirme.</small></span><input type="checkbox" id="chkTransfer" ${S.config.requireTransferApproval?'checked':''} onchange="S.config.requireTransferApproval=this.checked;save();toast(this.checked?'Las transferencias pendientes ya no cuentan hasta confirmarlas':'Las transferencias pendientes cuentan como cobradas');render('permisos')"></label>
     <div class="toggle-row"><span><b>Costo estándar de diagnóstico</b><small>Valor sugerido al recibir una herramienta. Se puede cambiar en cada orden.</small></span><input id="cfgDiag" type="number" step="0.01" value="${S.config.diagnosticoEstandar}" style="width:110px;padding:8px;border:1px solid var(--line);border-radius:8px" onchange="S.config.diagnosticoEstandar=Number(this.value)||250;save();toast('Costo de diagnóstico actualizado ✓')"></div>
-    <div class="toggle-row"><span><b>Formas de pago aceptadas</b><small>Efectivo, tarjeta y transferencia. El cheque no se maneja.</small></span></div></div>
+    <div class="toggle-row"><span><b>Formas de pago aceptadas</b><small>Efectivo, tarjeta, transferencia y cheque.</small></span></div></div>
     <div class="card" style="margin-top:13px"><h3>Datos del demo</h3><p class="small muted">Útil para empezar cada sesión de prueba desde cero.</p><button class="secondary" onclick="resetDemo()">Restablecer datos de ejemplo</button></div></div></div>
   <div class="permissions" style="margin-top:13px">
     ${roleCard('direccion','navy','✓ Todo el negocio, ambas sucursales<br>✓ Confirma transferencias<br>✓ Enciende y apaga módulos')}
