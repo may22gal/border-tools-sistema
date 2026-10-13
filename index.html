@@ -1699,26 +1699,108 @@ function openAbonoB2B(i){
 function saveAbonoB2B(i){const x=S.clientesB2B[i],ab=registrarAbono('ab',{creditoId:'B2B',cliente:x.nombre,sucursal:x.sucursal});if(!ab||ab.monto<=0||ab.monto>x.saldo+0.001)return toast('Monto no válido');x.saldo=r2(x.saldo-ab.monto);S.cobranzas.unshift(ab);logAct(`Abono B2B ${ab.monto} · ${x.nombre}`,x.sucursal);save();closeModal();toast('Abono registrado ✓');render('clientes')}
 
 // ════════════════ NÓMINA / COMISIONES (el pago genera su egreso) ════════════════
-function nomina(){const t=S.nomina.reduce((a,b)=>a+(+b.sueldo||0),0);return `${head('Nómina','El pago registrado genera su egreso en Finanzas con su forma de pago.',`<button class="primary" onclick="openEmpleado()">+ Persona</button>`)}<div class="grid4">${kpi('Equipo',S.nomina.length,'')}${kpi('Nómina por período',money(t),'')}${kpi('Pagados',S.nomina.filter(x=>x.estado==='Pagado').length,'')}${kpi('Pendientes',S.nomina.filter(x=>x.estado!=='Pagado').length,'')}</div><div class="card" style="margin-top:13px"><div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Área</th><th>Sucursal</th><th>Frecuencia</th><th>Importe</th><th>Último pago</th><th>Estado</th><th></th></tr></thead><tbody>${S.nomina.map((x,i)=>`<tr><td style="font-weight:600">${h(x.nombre)}</td><td>${h(x.rol)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(x.tipo)}</td><td style="font-weight:700">${money(x.sueldo)}</td><td>${h(x.ultimoPago)}</td><td>${statusBadge(x.estado)}</td><td><button class="secondary" onclick="${x.estado==='Pagado'?`deshacerPago('nomina',${i})`:`openPago('nomina',${i})`}">${x.estado==='Pagado'?'Marcar pendiente':'Registrar pago'}</button></td></tr>`).join('')}</tbody></table></div></div>`}
-function openEmpleado(){openModal('Agregar a nómina',`<div class="form-grid"><div class="field full"><label>Nombre</label><input id="n_nombre"></div><div class="field"><label>Puesto</label><input id="n_rol"></div><div class="field"><label>Sucursal</label><select id="n_suc">${sucOptions('Granjero')}</select></div><div class="field"><label>Frecuencia</label><select id="n_tipo"><option>Quincenal</option><option>Semanal</option></select></div><div class="field"><label>Importe</label><input id="n_sueldo" type="number"></div></div><div style="margin-top:14px"><button class="primary" onclick="saveEmpleado()">Guardar</button></div>`)}
-function saveEmpleado(){if(!val('n_nombre').trim()||num('n_sueldo')<=0)return toast('Captura nombre e importe');S.nomina.push({id:'N-'+Date.now(),nombre:val('n_nombre'),rol:val('n_rol'),sucursal:val('n_suc'),tipo:val('n_tipo'),sueldo:num('n_sueldo'),ultimoPago:'—',estado:'Pendiente'});save();closeModal();toast('Persona agregada ✓');render('nomina')}
-function comisiones(){const f=filterSuc(S.comisiones),pend=f.filter(x=>x.estado!=='Pagada');return `${head('Comisiones','Separadas del sueldo. Al pagarse generan su egreso en Finanzas.',`<button class="primary" onclick="openComision()">+ Comisión</button>`)}${sucTabs()}<div class="grid4">${kpi('Comisiones',money(f.reduce((a,b)=>a+(+b.monto||0),0)),'Registradas')}${kpi('Pagadas',f.filter(x=>x.estado==='Pagada').length,'')}${kpi('Pendientes',pend.length,'')}${kpi('Monto pendiente',money(pend.reduce((a,b)=>a+(+b.monto||0),0)),'')}</div><div class="card" style="margin-top:13px"><div class="table-wrap"><table><thead><tr><th>Persona</th><th>Sucursal</th><th>Tipo</th><th>Período</th><th>Monto</th><th>Pago</th><th>Estado</th><th></th></tr></thead><tbody>${f.map(x=>{const i=S.comisiones.indexOf(x);return `<tr><td style="font-weight:600">${h(x.nombre)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(x.tipo)}</td><td>${h(x.periodo)}</td><td style="font-weight:700">${money(x.monto)}</td><td>${h(x.fechaPago)}</td><td>${statusBadge(x.estado)}</td><td><button class="secondary" onclick="${x.estado==='Pagada'?`deshacerPago('comisiones',${i})`:`openPago('comisiones',${i})`}">${x.estado==='Pagada'?'Marcar pendiente':'Registrar pago'}</button></td></tr>`}).join('')}</tbody></table></div></div>`}
-function openComision(){openModal('Registrar comisión',`<div class="form-grid"><div class="field full"><label>Persona</label><input id="cm_nombre"></div><div class="field"><label>Sucursal</label><select id="cm_suc">${sucOptions(defaultSuc())}</select></div><div class="field"><label>Tipo</label><select id="cm_tipo"><option>Venta mostrador</option><option>Mano de obra</option><option>Otra</option></select></div><div class="field full"><label>Período</label><input id="cm_periodo"></div><div class="field"><label>Monto</label><input id="cm_monto" type="number" step="0.01"></div></div><div style="margin-top:14px"><button class="primary" onclick="saveComision()">Guardar</button></div>`)}
-function saveComision(){if(!val('cm_nombre').trim()||num('cm_monto')<=0)return toast('Captura persona y monto');S.comisiones.unshift({id:'CM-'+Date.now(),nombre:val('cm_nombre'),sucursal:val('cm_suc'),tipo:val('cm_tipo'),periodo:val('cm_periodo'),monto:r2(num('cm_monto')),estado:'Pendiente',fechaPago:'—'});save();closeModal();toast('Comisión registrada ✓');render('comisiones')}
+// Nómina y comisiones: el empleado se da de alta una sola vez. Los pagos son egresos reales, no simples estados.
+function nomina(){
+  const p=getReportPeriod(),suc=sucName(),personal=filterSuc(S.nomina);
+  const pagos=S.egresos.filter(x=>inReportRange(x.fecha,p)&&grupoEgreso(x)==='nomina'&&egresoMontoAsignado(x,suc)>0);
+  const total=r2(pagos.reduce((a,x)=>a+egresoAsignado(x,suc),0));
+  return `${head('Nómina','Primero da de alta al empleado. Después registra cada pago real con fecha y forma de pago.',`<button class="primary" onclick="openEmpleado()">+ Dar de alta empleado</button>`)}
+  ${sucTabs()}${reportControls()}
+  <div class="grid3">${kpi('Empleados',personal.length,'Catálogo de personal')}${kpi('Nómina pagada',money(total),'Dentro del período seleccionado')}${kpi('Pagos registrados',pagos.length,'Se cuentan una sola vez en Finanzas')}</div>
+  <div class="card" style="margin-top:13px"><h3>Personal</h3><div class="table-wrap"><table><thead><tr><th>Empleado</th><th>Sucursal</th><th>Puesto</th><th>Sueldo de referencia</th><th>Último pago</th><th></th></tr></thead>
+    <tbody>${personal.map(x=>{const i=S.nomina.indexOf(x);return `<tr><td><b>${h(x.nombre)}</b></td><td>${sucBadge(x.sucursal)}</td><td>${h(x.rol||'—')}</td><td>${Number(x.sueldo)>0?moneyC(x.sueldo):'Sin establecer'}</td><td>${h(x.ultimoPago||'—')}</td><td><button class="secondary" onclick="openPago('nomina',${i})">+ Registrar pago</button></td></tr>`}).join('')||'<tr><td colspan="6">No hay empleados. Da de alta al primero.</td></tr>'}</tbody>
+  </table></div></div>
+  <div class="card" style="margin-top:13px"><h3>Pagos de nómina realizados en el período</h3><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Empleado</th><th>Período pagado</th><th>Sucursal</th><th>Forma</th><th>Importe</th></tr></thead>
+  <tbody>${pagos.map(x=>`<tr><td>${h(x.fecha)}</td><td>${h(x.proveedor)}</td><td>${h(x.periodo||'—')}</td><td>${sucBadge(x.sucursal)}</td><td>${h(formatoPagoEgreso(x))}</td><td>${moneyC(egresoMontoAsignado(x,suc))}</td></tr>`).join('')||'<tr><td colspan="6">Sin pagos en el período.</td></tr>'}</tbody></table></div></div>`;
+}
+function openEmpleado(){
+  if(!can('egreso'))return toast('Tu usuario no administra la nómina');
+  openModal('Dar de alta empleado',`<div class="form-grid">
+  <div class="field full"><label>Nombre del empleado</label><input id="n_nombre" placeholder="Nombre completo"></div>
+  <div class="field"><label>Sucursal</label><select id="n_suc">${sucOptions(defaultSuc())}</select></div>
+  <div class="field"><label>Puesto (opcional)</label><input id="n_rol" placeholder="Ej. Almacén"></div>
+  <div class="field"><label>Sueldo de referencia (opcional)</label><input id="n_sueldo" type="number" min="0" step="0.01" placeholder="0.00"></div>
+  </div><div class="small muted" style="margin-top:8px">Dar de alta a un empleado NO registra ningún gasto. Los pagos se capturan después, uno por uno.</div>
+  <div style="margin-top:14px"><button class="primary" onclick="saveEmpleado()">Guardar empleado</button></div>`);
+}
+function saveEmpleado(){
+  if(!can('egreso'))return toast('Sin permiso');
+  const nombre=val('n_nombre').trim(),sucursal=val('n_suc'),sueldo=r2(num('n_sueldo'));
+  if(!nombre||sueldo<0)return toast('Captura un nombre válido');
+  if(S.nomina.some(x=>x.nombre.toLowerCase()===nombre.toLowerCase()&&x.sucursal===sucursal))return toast('Ese empleado ya existe en esa sucursal');
+  S.nomina.push({id:'N-'+Date.now(),nombre,rol:val('n_rol'),sucursal,sueldo,ultimoPago:'—',estado:'Activo'});
+  logAct('Alta de empleado '+nombre,sucursal);save();closeModal();toast('Empleado guardado ✓');render('nomina');
+}
+function comisiones(){
+  const p=getReportPeriod(),suc=sucName(),f=filterSuc(S.comisiones);
+  const pagadas=S.egresos.filter(x=>inReportRange(x.fecha,p)&&grupoEgreso(x)==='comisiones'&&egresoMontoAsignado(x,suc)>0);
+  const total=r2(pagadas.reduce((a,x)=>a+egresoAsignado(x,suc),0));
+  return `${head('Comisiones','Elige un empleado dado de alta, registra la comisión y marca el pago cuando realmente se realice.',`<button class="primary" onclick="openComision()">+ Registrar comisión</button><button class="secondary" onclick="openEmpleado()">+ Alta empleado</button>`)}
+  ${sucTabs()}${reportControls()}
+  <div class="grid3">${kpi('Comisiones pagadas',money(total),'Salida de dinero en el período')}${kpi('Comisiones pendientes',f.filter(x=>x.estado!=='Pagada').length,'Aún no son egresos pagados')}${kpi('Registros',f.length,'Histórico de comisiones')}</div>
+  <div class="card" style="margin-top:13px"><div class="table-wrap"><table><thead><tr><th>Empleado</th><th>Sucursal</th><th>Período</th><th>Monto</th><th>Último pago</th><th>Estado</th><th></th></tr></thead>
+  <tbody>${f.map(x=>{const i=S.comisiones.indexOf(x);return `<tr><td><b>${h(x.nombre)}</b></td><td>${sucBadge(x.sucursal)}</td><td>${h(x.periodo)}</td><td>${moneyC(x.monto)}</td><td>${h(x.fechaPago||'—')}</td><td>${statusBadge(x.estado)}</td><td>${x.estado==='Pagada'?'Pagada':`<button class="secondary" onclick="openPago('comisiones',${i})">Registrar pago</button>`}</td></tr>`}).join('')||'<tr><td colspan="7">Sin comisiones.</td></tr>'}</tbody>
+  </table></div></div>
+  <div class="card" style="margin-top:13px"><h3>Pagos de comisiones en el período</h3>${pagadas.length?pagadas.map(x=>`<div class="rline"><span>${h(x.fecha)} · ${h(x.proveedor)} · ${h(x.metodo)}</span><b>${moneyC(egresoMontoAsignado(x,suc))}</b></div>`).join(''):'<span class="muted small">Sin pagos realizados.</span>'}</div>`;
+}
+function openComision(){
+  if(!can('egreso'))return toast('Tu usuario no registra comisiones');
+  const empleados=S.nomina.filter(x=>x.nombre&&x.estado!=='Inactivo');
+  if(!empleados.length)return toast('Primero registra al empleado en Nómina');
+  openModal('Registrar comisión',`<div class="form-grid">
+    <div class="field full"><label>Empleado</label><select id="cm_empleado" onchange="actualizarEmpleadoComision()">${empleados.map(x=>`<option value="${h(x.id)}">${h(x.nombre)} · ${h(x.sucursal)}</option>`).join('')}</select></div>
+    <div class="field"><label>Sucursal</label><input id="cm_sucursal" disabled></div>
+    <div class="field"><label>Período</label><input id="cm_periodo" placeholder="Ej. Septiembre 2026"></div>
+    <div class="field"><label>Monto</label><input id="cm_monto" type="number" min="0" step="0.01"></div>
+    </div><div class="small muted" style="margin-top:8px">Registrar una comisión no significa que ya se pagó. El pago se captura por separado con la forma de pago y la fecha reales.</div>
+    <div style="margin-top:14px"><button class="primary" onclick="saveComision()">Guardar comisión</button></div>`);
+  actualizarEmpleadoComision();
+}
+function actualizarEmpleadoComision(){
+  const x=S.nomina.find(p=>p.id===val('cm_empleado'));
+  const input=document.getElementById('cm_sucursal');if(input)input.value=x?x.sucursal:'';
+}
+function saveComision(){
+  if(!can('egreso'))return toast('Sin permiso');
+  const emp=S.nomina.find(x=>x.id===val('cm_empleado')),m=r2(num('cm_monto')),periodo=val('cm_periodo').trim();
+  if(!emp||m<=0||!periodo)return toast('Selecciona empleado, período e importe');
+  S.comisiones.unshift({id:'CM-'+Date.now(),empleadoId:emp.id,nombre:emp.nombre,sucursal:emp.sucursal,periodo,monto:m,estado:'Pendiente',fechaPago:'—'});
+  save();closeModal();toast('Comisión registrada ✓');render('comisiones');
+}
 function openPago(tipo,i){
-  if(!can('egreso'))return toast('Tu usuario no registra pagos');
-  const x=S[tipo][i],monto=tipo==='nomina'?x.sueldo:x.monto;
-  openModal(`Registrar pago · ${h(x.nombre)}`,`<div class="callout">${tipo==='nomina'?'Nómina':'Comisión'} por <b>${moneyC(monto)}</b>. Se genera el egreso en Finanzas.</div><div class="form-grid"><div class="field"><label>Fecha de pago</label><input id="pg_fecha" type="date" value="${todayBiz()}"></div>${camposPago('pg',x.sucursal)}</div><div style="margin-top:14px"><button class="primary" onclick="savePago('${tipo}',${i})">Registrar pago</button></div>`);
+  if(!can('egreso'))return toast('No puedes registrar pagos');
+  const x=S[tipo][i];if(!x)return toast('No existe el registro');
+  if(tipo==='comisiones'&&x.estado==='Pagada')return toast('Esta comisión ya fue pagada');
+  const monto=tipo==='nomina'?(Number(x.sueldo)||0):(Number(x.monto)||0);
+  openModal(`Registrar pago · ${h(x.nombre)}`,`<div class="callout">Solo se registra como egreso cuando efectivamente se paga.</div>
+    <div class="form-grid"><div class="field"><label>Fecha real del pago</label><input id="pg_fecha" type="date" value="${todayBiz()}"></div>
+    <div class="field"><label>Período que se paga</label><input id="pg_periodo" placeholder="Ej. Semana 40 / octubre 2026" value="${tipo==='comisiones'?h(x.periodo||''):''}"></div>
+    <div class="field"><label>Monto realmente pagado</label><input id="pg_monto" type="number" step="0.01" min="0" value="${monto}"></div>
+    ${camposPago('pg',x.sucursal)}</div>
+    <div style="margin-top:14px"><button class="primary" onclick="savePago('${tipo}',${i})">Confirmar pago</button></div>`);
   document.getElementById('pg_metodo').value='Transferencia';syncCajaPago('pg');
 }
 function savePago(tipo,i){
-  const x=S[tipo][i],fecha=val('pg_fecha')||todayBiz(),monto=tipo==='nomina'?x.sueldo:x.monto;
+  if(!can('egreso'))return toast('Sin permiso');
+  const x=S[tipo][i];if(!x)return;
+  if(tipo==='comisiones'&&x.estado==='Pagada')return toast('Esta comisión ya fue pagada');
+  const fecha=val('pg_fecha'),periodo=val('pg_periodo').trim(),monto=r2(num('pg_monto'));
+  if(!fecha||!periodo||monto<=0)return toast('Captura fecha, período e importe');
+  const yaPagado=tipo==='nomina'&&S.egresos.some(e=>e.origenId===x.id&&e.periodo&&e.periodo.trim().toLowerCase()===periodo.toLowerCase());
+  if(yaPagado&&!confirm('Ya existe un pago de este empleado para ese período. ¿Registrar otro pago adicional?'))return;
   if(tipo==='nomina'){x.estado='Pagado';x.ultimoPago=fecha}else{x.estado='Pagada';x.fechaPago=fecha}
-  S.egresos.unshift(Object.assign({fecha,concepto:`${tipo==='nomina'?'Pago nómina':'Comisión '+x.tipo} · ${x.nombre}`,categoria:tipo==='nomina'?'Nómina':'Comisiones vendedores',proveedor:x.nombre,monto,sucursal:x.sucursal,origenId:x.id},leerPago('pg',x.sucursal)));
-  logAct(`${tipo==='nomina'?'Nómina':'Comisión'} pagada · ${x.nombre}`,x.sucursal);save();closeModal();toast('Pago registrado ✓ — egreso en Finanzas');render(tipo);
+  const pay=Object.assign({id:'EG-'+Date.now(),grupo:tipo,fecha,periodo,concepto:(tipo==='nomina'?'Pago nómina':'Pago comisión')+' · '+x.nombre,categoria:tipo==='nomina'?'Nómina':'Comisiones vendedores',proveedor:x.nombre,monto,sucursal:x.sucursal,origenId:x.id,empleadoId:tipo==='nomina'?x.id:(x.empleadoId||'')},leerPago('pg',x.sucursal));
+  S.egresos.unshift(pay);
+  logAct((tipo==='nomina'?'Nómina':'Comisión')+' pagada · '+x.nombre+' · '+monto+' · '+periodo,x.sucursal);
+  save();closeModal();toast('Pago guardado ✓ · reflejado en Finanzas');render(tipo);
 }
-function deshacerPago(tipo,i){const x=S[tipo][i];if(!confirm('¿Marcar como pendiente? Se quitará su egreso de Finanzas.'))return;x.estado='Pendiente';if(tipo==='comisiones')x.fechaPago='—';S.egresos=S.egresos.filter(e=>e.origenId!==x.id);save();toast('Marcado pendiente');render(tipo)}
-
+function deshacerPago(tipo,i){
+  if(role!=='direccion')return toast('Solo el Director puede revertir un pago');
+  const x=S[tipo][i];if(!x)return;
+  const rows=S.egresos.filter(e=>e.origenId===x.id);
+  if(!rows.length)return toast('No hay pagos para revertir');
+  toast('Para conservar el historial, no se borran pagos. Registra un ajuste supervisado en Finanzas.');
+}
 // ════════════════ EXCEL / EXPORTAR ════════════════
 function excel(){return `${head('Excel / Importar','Puente entre los archivos actuales y el sistema.')}<div class="callout">Mientras los reportes sigan en Excel, se importan aquí sin doble captura. Si alguien necesita Excel, se exporta desde cada pantalla.</div><div class="grid3"><div class="card"><h3>1. Importar</h3><p class="small muted">Demo: identifica el archivo; el mapeo de columnas se configura en la versión conectada.</p><input type="file" accept=".xlsx,.xls,.csv" onchange="if(this.files[0])toast('Demo: '+this.files[0].name+' listo para mapear')"></div><div class="card"><h3>2. Captura directa</h3><p class="small muted">Cada área captura una sola vez.</p><span class="badge b-green">Sin doble trabajo</span></div><div class="card"><h3>3. Exportar</h3><div class="btn-row"><button class="secondary" onclick="exportarCortes()">Cortes</button><button class="secondary" onclick="exportarEgresos()">Egresos</button><button class="secondary" onclick="exportarCobranza()">Cobranza</button></div></div></div>`}
 function exportarCSV(nombre,cols,filas){
