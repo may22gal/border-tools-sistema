@@ -813,7 +813,18 @@ function reportControls(){
 function transferCuenta(x){const st=x.transferenciaStatus||'Aprobada';if(st==='Rechazada')return false;return S.config.requireTransferApproval?st==='Aprobada':true}
 function metodoValido(m){return METODOS.includes(m)}
 function abonoCuenta(x){if(!metodoValido(x.metodo))return false;return x.metodo==='Transferencia'?transferCuenta(x):true}
-function egresoAsignado(x,suc){const m=Number(x.monto)||0;if(!suc)return m;if(x.sucursal===suc)return m;if(x.sucursal==='Ambas')return m/2;return 0}
+function egresoMontoAsignado(x,suc){const m=Number(x.monto)||0;if(!suc)return m;if(x.sucursal===suc)return m;if(x.sucursal==='Ambas')return m/2;return 0}
+function egresoAsignado(x,suc){return x.pagoAplazado?0:egresoMontoAsignado(x,suc)}
+function grupoEgreso(x){
+  if(['proveedores','nomina','comisiones','gastos'].includes(x.grupo))return x.grupo;
+  const c=String(x.categoria||'').toLowerCase();
+  if(c==='nómina'||c==='nomina')return 'nomina';
+  if(c.startsWith('comision')||c.startsWith('comisión'))return 'comisiones';
+  if(c.includes('mercanc')||c==='refacciones')return 'proveedores';
+  return 'gastos';
+}
+function totalEgresosGrupo(p,suc,grupo){return r2(S.egresos.filter(x=>inReportRange(x.fecha,p)&&grupoEgreso(x)===grupo).reduce((a,x)=>a+egresoAsignado(x,suc),0))}
+function formatoPagoEgreso(x){return x.pagoAplazado?'Tarjeta de crédito · pendiente de liquidar':x.metodo||'Sin especificar'}
 function egresoCajaSuc(x){return x.impactaCajaFisica?(x.sucursal==='Ambas'?(x.cajaSucursal||''):(x.cajaSucursal||x.sucursal)):''}
 function egresoCaja(x,suc){if(!x.impactaCajaFisica)return 0;const m=Number(x.monto)||0;if(!suc)return m;return egresoCajaSuc(x)===suc?m:0}
 function movEfectivo(x){return (Number(x.entrada)||0)-(Number(x.salida)||0)}
@@ -1532,24 +1543,84 @@ function leerPago(prefix,sucAsignada){
   const metodo=val(prefix+'_metodo'),sale=metodo==='Efectivo'&&val(prefix+'_caja')==='1';
   return {metodo,impactaCajaFisica:sale,cajaSucursal:sale?(sucAsignada==='Ambas'?val(prefix+'_cajasuc'):(val(prefix+'_cajasuc')||sucAsignada)):''};
 }
-function openEgreso(){
-  if(!can('egreso'))return toast('Tu usuario no registra egresos');
-  openModal('Registrar egreso',`<div class="form-grid">
-    <div class="field"><label>Fecha</label><input id="e_fecha" type="date" value="${todayBiz()}"></div>
-    <div class="field"><label>Sucursal a la que se asigna</label><select id="e_suc" onchange="if(this.value!=='Ambas')document.getElementById('e_cajasuc').value=this.value">${SUCURSALES.map(s=>`<option ${s===(sucName()||'Granjero')?'selected':''}>${s}</option>`).join('')}<option>Ambas</option></select></div>
-    <div class="field full"><label>Concepto</label><input id="e_concepto"></div>
-    <div class="field"><label>Categoría</label><select id="e_cat">${['Mercancía / Proveedores','Refacciones','Nómina','Comisiones vendedores','Comisión terminal','Renta','Servicios','Impuestos / IMSS / Infonavit','Contador','Tarjetas / Préstamos','SICAR / Software','Mercancía USA','Otros'].map(c=>`<option>${c}</option>`).join('')}</select></div>
-    <div class="field"><label>Proveedor / beneficiario</label><input id="e_prov"></div>
-    <div class="field"><label>Monto</label><input id="e_monto" type="number" step="0.01"></div>
-    ${camposPago('e',sucName()||'Granjero')}
-  </div><div class="small muted" style="margin-top:8px">"Ambas": cuenta completo en el consolidado y 50/50 al ver cada sucursal. Si se pagó en efectivo, indica qué caja lo pagó.</div>
-  <div style="margin-top:14px"><button class="primary" onclick="saveEgreso()">Guardar egreso</button></div>`);
-  syncCajaPago('e');
+// Formularios separados, UN solo registro en S.egresos. No duplicar en reportes.
+function egresosGrupoPagina(grupo){
+  const esProveedor=grupo==='proveedores',p=getReportPeriod(),suc=sucName();
+  const list=S.egresos.filter(x=>inReportRange(x.fecha,p)&&grupoEgreso(x)===grupo&&egresoMontoAsignado(x,suc)>0);
+  const pagado=r2(list.reduce((a,x)=>a+egresoAsignado(x,suc),0));
+  const porLiquidar=r2(list.reduce((a,x)=>a+(x.pagoAplazado?egresoMontoAsignado(x,suc):0),0));
+  return `${head(esProveedor?'Pago a proveedores':'Gastos generales',esProveedor?'Solo pagos realizados por mercancía y refacciones, no órdenes de compra.':'Gastos reales pagados. Crea tus propias categorías sin duplicar nómina, comisiones ni proveedores.',`
+  <button class="primary" onclick="openEgreso('${grupo}')">+ ${esProveedor?'Registrar pago':'Registrar gasto'}</button>
+  ${!esProveedor?'<button class="secondary" onclick="administrarCategoriasGastos()">Administrar tipos de gasto</button>':''}`)}
+  ${sucTabs()}${reportControls()}
+  <div class="grid3">
+    ${kpi('Salidas de dinero',money(pagado),'Pagos efectivos del período')}
+    ${kpi('Cargos pendientes en tarjeta',money(porLiquidar),'Aún no salen del banco')}
+    ${kpi('Movimientos',list.length,'Pagos y cargos registrados')}
+  </div>
+  <div class="card" style="margin-top:13px"><h3>${esProveedor?'Pagos a proveedores':'Detalle de gastos'}</h3><div class="table-wrap"><table>
+    <thead><tr><th>Fecha</th><th>Sucursal</th><th>${esProveedor?'Proveedor':'Tipo de gasto'}</th><th>Concepto</th><th>Forma de pago</th><th>Monto</th><th>Estado</th></tr></thead>
+    <tbody>${list.map(x=>`<tr><td>${h(x.fecha)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(esProveedor?x.proveedor:x.categoria)}</td><td>${h(x.concepto)}</td><td>${h(formatoPagoEgreso(x))}</td><td>${moneyC(egresoMontoAsignado(x,suc))}</td><td>${x.pagoAplazado?'<span class="badge b-amber">Sin liquidar</span>':'<span class="badge b-green">Pagado</span>'}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Sin movimientos de este tipo en el período.</td></tr>'}</tbody>
+  </table></div></div>
+  <div class="callout" style="margin-top:13px">Los pagos con tarjeta de crédito pendientes de liquidar se muestran aquí, pero NO bajan el dinero disponible ni se duplican en el flujo. Cuando realmente se pague la tarjeta, regístralo en Gastos → Pago de tarjeta de crédito.</div>`;
 }
-function saveEgreso(){
-  const suc=val('e_suc'),x=Object.assign({fecha:val('e_fecha'),concepto:val('e_concepto').trim(),categoria:val('e_cat'),proveedor:val('e_prov'),monto:r2(num('e_monto')),sucursal:suc},leerPago('e',suc));
-  if(!x.concepto||x.monto<=0||!x.fecha)return toast('Completa fecha, concepto y monto');
-  S.egresos.unshift(x);logAct(`Egreso ${x.monto} · ${x.concepto} · ${x.metodo}`,suc);save();closeModal();toast('Egreso guardado ✓');render('finanzas');
+function proveedores(){return egresosGrupoPagina('proveedores')}
+function gastos(){return egresosGrupoPagina('gastos')}
+function administrarCategoriasGastos(){
+  if(!can('egreso'))return toast('No tienes permiso para cambiar categorías');
+  const cats=S.categoriasGastos.filter(x=>x.activo!==false);
+  openModal('Tipos de gastos',`<div class="callout">Estas opciones aparecerán cada vez que registres un gasto. "Fijo" significa que queda guardado para volver a elegirlo, NO que se registre o cobre automáticamente.</div>
+  <div class="card" style="margin-top:10px"><h3>Tipos disponibles</h3>${cats.map(x=>`<div class="rline"><span>${h(x.nombre)} ${x.fijo?'<span class="badge b-blue">Fijo</span>':''}</span>${role==='direccion'&&x.nombre!=='Otros'? `<button class="secondary" onclick="desactivarCategoriaGasto('${encodeURIComponent(x.nombre)}')">Desactivar</button>`:''}</div>`).join('')}</div>
+  <div class="form-grid" style="margin-top:12px"><div class="field"><label>Nuevo tipo de gasto</label><input id="tg_nombre" placeholder="Ej. Servicio de internet"></div>
+  <div class="field"><label>¿Es gasto fijo?</label><select id="tg_fijo"><option value="1">Sí, frecuente</option><option value="0">No, ocasional</option></select></div></div>
+  <div style="margin-top:12px"><button class="primary" onclick="guardarCategoriaGasto()">+ Guardar tipo</button></div>`);
+}
+function guardarCategoriaGasto(){
+  if(!can('egreso'))return toast('No tienes permiso');
+  const n=val('tg_nombre').trim();if(!n)return toast('Escribe el nombre del gasto');
+  const x=S.categoriasGastos.find(a=>a.nombre.toLowerCase()===n.toLowerCase());
+  if(x){if(x.activo!==false)return toast('Ese tipo ya existe');x.activo=true;x.fijo=val('tg_fijo')==='1'}
+  else S.categoriasGastos.push({nombre:n,fijo:val('tg_fijo')==='1',activo:true});
+  logAct('Categoría de gasto agregada: '+n,'sys');save();administrarCategoriasGastos();toast('Tipo de gasto guardado');
+}
+function desactivarCategoriaGasto(encoded){
+  if(role!=='direccion')return toast('Solo el Director puede desactivar categorías');
+  const n=decodeURIComponent(encoded),x=S.categoriasGastos.find(a=>a.nombre===n);
+  if(!x||!confirm('¿Desactivar el tipo de gasto '+n+'? No se borran los registros anteriores.'))return;
+  x.activo=false;logAct('Director desactivó tipo de gasto: '+n,'sys');save();administrarCategoriasGastos();
+}
+function openEgreso(grupo='gastos'){
+  if(!can('egreso'))return toast('Tu usuario no registra egresos');
+  const esProveedor=grupo==='proveedores';
+  const categorias=(S.categoriasGastos||[]).filter(x=>x.activo!==false);
+  openModal(esProveedor?'Pago a proveedores':'Registrar gasto',`<div class="callout">Registra únicamente el movimiento que realmente ocurrió. ${esProveedor?'Las órdenes de compra no cuentan como dinero pagado.':'La nómina y las comisiones se registran desde sus propias pantallas.'}</div>
+  <div class="form-grid">
+    <div class="field"><label>Fecha de pago / cargo</label><input id="e_fecha" type="date" value="${todayBiz()}"></div>
+    <div class="field"><label>Sucursal</label><select id="e_suc" onchange="if(this.value!=='Ambas')document.getElementById('e_cajasuc').value=this.value">${sucOptions(defaultSuc(),{ambas:true})}</select></div>
+    <div class="field full"><label>${esProveedor?'Proveedor / empresa':'Descripción del gasto'}</label><input id="e_concepto" placeholder="${esProveedor?'Ej. Makita México':'Ej. Pago de energía eléctrica'}"></div>
+    ${esProveedor?`<div class="field"><label>Proveedor</label><input id="e_prov" placeholder="Nombre del proveedor"></div><div class="field"><label>Tipo</label><select id="e_cat"><option>Mercancía / Proveedores</option><option>Refacciones</option><option>Mercancía USA</option></select></div>`
+      :`<div class="field"><label>Tipo de gasto</label><select id="e_cat">${categorias.map(x=>`<option>${h(x.nombre)}</option>`).join('')}</select></div><div class="field"><label>Beneficiario (opcional)</label><input id="e_prov"></div>`}
+    <div class="field"><label>Monto</label><input id="e_monto" type="number" step="0.01" min="0" placeholder="0.00"></div>
+    ${camposPago('e',defaultSuc())}
+    <div class="field full" id="e_credito_box" style="display:none"><label>¿Se cargó a una tarjeta de crédito y se pagará después?</label>
+      <select id="e_credito"><option value="0">No, ya salió de la cuenta</option><option value="1">Sí, todavía NO salió del banco</option></select></div>
+  </div><div class="small muted" style="margin-top:8px">Para pagos de tarjeta de crédito, usa el tipo «Pago de tarjeta de crédito». No registres dos veces el mismo dinero.</div>
+  <div style="margin-top:14px"><button class="primary" onclick="saveEgreso('${grupo}')">Guardar ${esProveedor?'pago':'gasto'}</button></div>`);
+  document.getElementById('e_metodo').value='Transferencia';
+  document.getElementById('e_metodo').addEventListener('change',actualizarCargoTarjeta);
+  actualizarCargoTarjeta();syncCajaPago('e');
+}
+function actualizarCargoTarjeta(){const box=document.getElementById('e_credito_box');if(box)box.style.display=val('e_metodo')==='Tarjeta'?'':'none';}
+function saveEgreso(grupo='gastos'){
+  if(!can('egreso'))return toast('Tu usuario no registra egresos');
+  const suc=val('e_suc'),m=r2(num('e_monto')),cat=val('e_cat'),concepto=val('e_concepto').trim(),prov=val('e_prov').trim();
+  if(!val('e_fecha')||!concepto||m<=0)return toast('Completa fecha, descripción y monto');
+  if(grupo==='proveedores'&&!prov)return toast('Captura el proveedor');
+  const aplazado=val('e_metodo')==='Tarjeta'&&val('e_credito')==='1';
+  if(aplazado&&cat==='Pago de tarjeta de crédito')return toast('El pago de tarjeta debe registrarse cuando realmente se liquide');
+  const x=Object.assign({id:'EG-'+Date.now()+'-'+Math.floor(Math.random()*1000),fecha:val('e_fecha'),grupo,concepto,categoria:cat,proveedor:prov,monto:m,sucursal:suc,pagoAplazado:aplazado},leerPago('e',suc));
+  S.egresos.unshift(x);logAct(`${grupo==='proveedores'?'Proveedor':'Gasto'} ${m} · ${concepto} · ${formatoPagoEgreso(x)}`,suc);
+  save();closeModal();toast('Registro guardado ✓');render(grupo==='proveedores'?'proveedores':'gastos');
 }
 function openSaldos(){
   if(!can('saldos'))return;
