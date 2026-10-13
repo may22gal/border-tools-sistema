@@ -397,7 +397,7 @@ tr:hover td{background:#f9fbfd}
   </div>
   <div class="field"><label>Contraseña</label><input type="password" value="demo123"></div>
   <button class="primary" id="btnEntrar" onclick="enter()">Entrar al sistema</button>
-  <div class="tip" id="loginTip"><b>Demo v2.3.</b> Datos de ejemplo guardados solo en este navegador. La contraseña no se valida en el demo. El corte diario se captura de tres formas: PDF de SICAR, pegando los totales o escribiéndolos a mano.</div>
+  <div class="tip" id="loginTip"><b>Demo v2.4.</b> Datos de ejemplo guardados solo en este navegador. La contraseña no se valida en el demo. El corte diario se captura de tres formas: PDF de SICAR, pegando los totales o escribiéndolos a mano.</div>
 </div>
 </section>
 
@@ -450,7 +450,7 @@ tr:hover td{background:#f9fbfd}
       <button data-page="permisos"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 13a7.97 7.97 0 0 0 0-2l2-1.5-2-3.4-2.4 1a8 8 0 0 0-1.7-1L15 3h-6l-.3 2.6a8 8 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 11a7.97 7.97 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 1.7 1L9 21h6l.3-2.6a8 8 0 0 0 1.7-1l2.4 1 2-3.4z"></path></svg></span> Control del sistema</button>
     </div>
   </div>
-  <div class="sidebar-footer">Border Tools · Jz. Chih. · v2.3 demo</div>
+  <div class="sidebar-footer">Border Tools · Jz. Chih. · v2.4</div>
 </aside>
 
 <main class="main">
@@ -521,7 +521,7 @@ const ACTIONS={
   saldos:['direccion','finanzas']
 };
 // ── Página → módulo que el Director puede apagar ──
-const MODULE_OF={proveedores:'finanzas',gastos:'finanzas',ventas:'ventas',ventas_admin:'administracionVentas',mano_obra:'manoObra',sucursales:'comparativo',servicio:'diagnostico',servicio_stats:'diagnostico',credito:'credito',caja:'caja',finanzas:'finanzas',reportes:'reportes',facturacion:'facturacion',inventario:'inventario',ml:'ecommerce',oportunidades:'oportunidades',compras:'compras',clientes:'clientes',nomina:'nomina',comisiones:'comisiones'};
+const MODULE_OF={proveedores:'proveedores',gastos:'gastos',ventas:'ventas',ventas_admin:'administracionVentas',mano_obra:'manoObra',sucursales:'comparativo',servicio:'diagnostico',servicio_stats:'diagnostico',credito:'credito',caja:'caja',finanzas:'finanzas',reportes:'reportes',facturacion:'facturacion',inventario:'inventario',ml:'ecommerce',oportunidades:'oportunidades',compras:'compras',clientes:'clientes',nomina:'nomina',comisiones:'comisiones'};
 const MODULE_LABELS={proveedores:'Pago a proveedores',gastos:'Gastos generales',ventas:'Ventas · cortes SICAR',administracionVentas:'Administración de ventas',manoObra:'Mano de obra',comparativo:'Comparativo de sucursales',diagnostico:'Centro de Diagnóstico',credito:'Crédito / Cobranza',caja:'Caja por sucursal / Corte',finanzas:'Finanzas',reportes:'Reportes',facturacion:'Facturación',inventario:'Inventario',ecommerce:'Mercado Libre',oportunidades:'Oportunidades',compras:'Compras',clientes:'Clientes B2B',nomina:'Nómina',comisiones:'Comisiones'};
 
 // ESTADOS DEL SERVICIO: Recibida → Diagnóstico → Cotizada → Autorizada → En reparación → Lista → Entregada · (o Rechazada)
@@ -1757,7 +1757,7 @@ function saveEmpleado(){
   if(!nombre||sueldo<0)return toast('Captura un nombre válido');
   if(S.nomina.some(x=>x.nombre.toLowerCase()===nombre.toLowerCase()&&x.sucursal===sucursal))return toast('Ese empleado ya existe en esa sucursal');
   S.nomina.push({id:'N-'+Date.now(),nombre,rol:val('n_rol'),sucursal,sueldo,ultimoPago:'—',estado:'Activo'});
-  logAct('Alta de empleado '+nombre,sucursal);save();closeModal();toast('Empleado guardado ✓');render('nomina');
+  logAct('Alta de empleado '+nombre,sucursal);save();closeModal();toast('Empleado guardado ✓');render(currentPage==='comisiones'?'comisiones':'nomina');
 }
 function comisiones(){
   const p=getReportPeriod(),suc=sucName(),f=filterSuc(S.comisiones);
