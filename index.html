@@ -410,11 +410,9 @@ tr:hover td{background:#f9fbfd}
       <button data-page="home"><span class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></span> Resumen</button>
     </div>
     <div class="nav-group">
-      <div class="section">Ventas</div>
+      <div class="section">Ingresos</div>
       <button data-page="ventas"><span class="ico"><svg viewBox="0 0 24 24"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2z"></path><line x1="9" y1="7" x2="15" y2="7"></line><line x1="9" y1="11" x2="15" y2="11"></line></svg></span> Ventas · cortes SICAR</button>
-      <button data-page="ventas_admin"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg></span> Administración de ventas</button>
       <button data-page="mano_obra"><span class="ico"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L2 19l3 3 7.3-7.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2 2.6-2.6z"></path></svg></span> Mano de obra</button>
-      <button data-page="sucursales"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"></path><path d="M4 9v11h16V9"></path><path d="M9 20v-6h6v6"></path></svg></span> Comparativo sucursales</button>
     </div>
     <div class="nav-group">
       <div class="section">Centro de Servicio <span class="makita-badge">MAKITA</span></div>
@@ -422,7 +420,16 @@ tr:hover td{background:#f9fbfd}
       <button data-page="servicio_stats"><span class="ico"><svg viewBox="0 0 24 24"><line x1="4" y1="20" x2="20" y2="20"></line><rect x="6" y="12" width="3" height="8"></rect><rect x="11" y="7" width="3" height="13"></rect><rect x="16" y="3" width="3" height="17"></rect></svg></span> Estadísticas de servicio</button>
     </div>
     <div class="nav-group">
-      <div class="section">Dinero</div>
+      <div class="section">Egresos</div>
+      <button data-page="proveedores"><span class="ico">🏭</span> Pago a proveedores</button>
+      <button data-page="nomina"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"></circle><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"></path><circle cx="17" cy="9" r="2.5"></circle><path d="M15 14c2.8.3 5 2.6 5 6"></path></svg></span> Nómina</button>
+      <button data-page="comisiones"><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 2l2.6 5.9L21 8.8l-4.5 4.2L17.6 21 12 17.6 6.4 21l1.1-8-4.5-4.2 6.4-.9z"></path></svg></span> Comisiones</button>
+      <button data-page="gastos"><span class="ico">🧾</span> Gastos generales</button>
+    </div>
+    <div class="nav-group">
+      <div class="section">Dinero y reportes</div>
+      <button data-page="ventas_admin"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg></span> Administración de ventas</button>
+      <button data-page="sucursales"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"></path><path d="M4 9v11h16V9"></path><path d="M9 20v-6h6v6"></path></svg></span> Comparativo sucursales</button>
       <button data-page="credito"><span class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg></span> Crédito / Cobranza</button>
       <button data-page="caja"><span class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12" rx="2"></rect><circle cx="12" cy="13" r="2.5"></circle><path d="M7 7V5h10v2"></path></svg></span> Caja / Corte</button>
       <button data-page="finanzas"><span class="ico"><svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline></svg></span> Finanzas</button>
@@ -436,11 +443,6 @@ tr:hover td{background:#f9fbfd}
       <button data-page="oportunidades"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg></span> Oportunidades</button>
       <button data-page="compras"><span class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="12" height="9"></rect><path d="M14 10h4l3 3v3h-7z"></path><circle cx="6.5" cy="18.5" r="1.8"></circle><circle cx="17.5" cy="18.5" r="1.8"></circle></svg></span> Compras</button>
       <button data-page="clientes"><span class="ico"><svg viewBox="0 0 24 24"><path d="M2 12l5-5 4 3 3-3 5 5-3 3-2-2-3 3-4-3z"></path><path d="M9 17l2 2 2-2"></path></svg></span> Clientes B2B</button>
-    </div>
-    <div class="nav-group">
-      <div class="section">Equipo</div>
-      <button data-page="nomina"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"></circle><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"></path><circle cx="17" cy="9" r="2.5"></circle><path d="M15 14c2.8.3 5 2.6 5 6"></path></svg></span> Nómina</button>
-      <button data-page="comisiones"><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 2l2.6 5.9L21 8.8l-4.5 4.2L17.6 21 12 17.6 6.4 21l1.1-8-4.5-4.2 6.4-.9z"></path></svg></span> Comisiones</button>
     </div>
     <div class="nav-group">
       <div class="section">Control</div>
@@ -498,12 +500,12 @@ const SUCURSALES=['Granjero','Troncoso'];
 const METODOS=['Efectivo','Transferencia','Tarjeta','Cheque'];
 
 // ── Páginas que ve cada rol (permiso = página) ──
-const ALL_PAGES=['home','ventas','ventas_admin','mano_obra','sucursales','servicio','servicio_stats','credito','caja','finanzas','reportes','facturacion','inventario','ml','oportunidades','compras','clientes','nomina','comisiones','excel','permisos'];
+const ALL_PAGES=['home','ventas','ventas_admin','mano_obra','sucursales','proveedores','gastos','servicio','servicio_stats','credito','caja','finanzas','reportes','facturacion','inventario','ml','oportunidades','compras','clientes','nomina','comisiones','excel','permisos'];
 const PERMS={
   direccion:ALL_PAGES,
   ventas_g:['home','ventas','ventas_admin','mano_obra','servicio','credito','clientes','oportunidades','inventario'],
   ventas_t:['home','ventas','ventas_admin','mano_obra','servicio','clientes','oportunidades','inventario'],
-  finanzas:['home','ventas','ventas_admin','mano_obra','sucursales','credito','caja','finanzas','reportes','nomina','comisiones','excel'],
+  finanzas:['home','ventas','ventas_admin','mano_obra','sucursales','proveedores','gastos','credito','caja','finanzas','reportes','nomina','comisiones','excel'],
   facturacion:['home','facturacion','credito','clientes','excel'],
   ecommerce:['home','inventario','ml','oportunidades','excel'],
   servicio:['home','servicio','servicio_stats','inventario','excel']
@@ -519,8 +521,8 @@ const ACTIONS={
   saldos:['direccion','finanzas']
 };
 // ── Página → módulo que el Director puede apagar ──
-const MODULE_OF={ventas:'ventas',ventas_admin:'administracionVentas',mano_obra:'manoObra',sucursales:'comparativo',servicio:'diagnostico',servicio_stats:'diagnostico',credito:'credito',caja:'caja',finanzas:'finanzas',reportes:'reportes',facturacion:'facturacion',inventario:'inventario',ml:'ecommerce',oportunidades:'oportunidades',compras:'compras',clientes:'clientes',nomina:'nomina',comisiones:'comisiones'};
-const MODULE_LABELS={ventas:'Ventas · cortes SICAR',administracionVentas:'Administración de ventas',manoObra:'Mano de obra',comparativo:'Comparativo de sucursales',diagnostico:'Centro de Diagnóstico',credito:'Crédito / Cobranza',caja:'Caja por sucursal / Corte',finanzas:'Finanzas',reportes:'Reportes',facturacion:'Facturación',inventario:'Inventario',ecommerce:'Mercado Libre',oportunidades:'Oportunidades',compras:'Compras',clientes:'Clientes B2B',nomina:'Nómina',comisiones:'Comisiones'};
+const MODULE_OF={proveedores:'finanzas',gastos:'finanzas',ventas:'ventas',ventas_admin:'administracionVentas',mano_obra:'manoObra',sucursales:'comparativo',servicio:'diagnostico',servicio_stats:'diagnostico',credito:'credito',caja:'caja',finanzas:'finanzas',reportes:'reportes',facturacion:'facturacion',inventario:'inventario',ml:'ecommerce',oportunidades:'oportunidades',compras:'compras',clientes:'clientes',nomina:'nomina',comisiones:'comisiones'};
+const MODULE_LABELS={proveedores:'Pago a proveedores',gastos:'Gastos generales',ventas:'Ventas · cortes SICAR',administracionVentas:'Administración de ventas',manoObra:'Mano de obra',comparativo:'Comparativo de sucursales',diagnostico:'Centro de Diagnóstico',credito:'Crédito / Cobranza',caja:'Caja por sucursal / Corte',finanzas:'Finanzas',reportes:'Reportes',facturacion:'Facturación',inventario:'Inventario',ecommerce:'Mercado Libre',oportunidades:'Oportunidades',compras:'Compras',clientes:'Clientes B2B',nomina:'Nómina',comisiones:'Comisiones'};
 
 // ESTADOS DEL SERVICIO: Recibida → Diagnóstico → Cotizada → Autorizada → En reparación → Lista → Entregada · (o Rechazada)
 const ESTADOS=['Recibida','Diagnóstico','Cotizada','Autorizada','En reparación','Lista','Entregada','Rechazada'];
@@ -529,6 +531,24 @@ const ESTADOS=['Recibida','Diagnóstico','Cotizada','Autorizada','En reparación
 function seedData(){return {
   version:VERSION,
   config:{diagnosticoEstandar:250,requireTransferApproval:false,moduleFlags:{}},
+  categoriasGastos:[
+    {nombre:'SAT / Impuestos',fijo:true,activo:true},
+    {nombre:'IMSS / SIPARE',fijo:true,activo:true},
+    {nombre:'ISN',fijo:true,activo:true},
+    {nombre:'Infonavit',fijo:true,activo:true},
+    {nombre:'Renta',fijo:true,activo:true},
+    {nombre:'Luz',fijo:true,activo:true},
+    {nombre:'Agua',fijo:true,activo:true},
+    {nombre:'Internet / Telefonía',fijo:true,activo:true},
+    {nombre:'Contador',fijo:true,activo:true},
+    {nombre:'SICAR / Software',fijo:true,activo:true},
+    {nombre:'Comisión terminal',fijo:true,activo:true},
+    {nombre:'Consumibles',fijo:false,activo:true},
+    {nombre:'Papelería',fijo:false,activo:true},
+    {nombre:'Mantenimiento',fijo:false,activo:true},
+    {nombre:'Pago de tarjeta de crédito',fijo:false,activo:true},
+    {nombre:'Otros',fijo:false,activo:true}
+  ],
   ventas:[
     {id:'V-4',fecha:'2026-08-28',sucursal:'Granjero',responsable:'Equipo Granjero',efectivo:1375.03,transferencia:6914.10,transferenciaStatus:'Pendiente',tarjeta:5252.27,credito:8414.64,creditoAsignado:0,manoObra:150,totalVentaSicar:21956.04,observacion:'',sicarArchivo:'Reporte 28-08-26.pdf'},
     {id:'V-3',fecha:'2026-08-27',sucursal:'Troncoso',responsable:'Equipo Troncoso',efectivo:8240,transferencia:11950,transferenciaStatus:'Aprobada',tarjeta:6875,credito:4200,creditoAsignado:0,manoObra:0,totalVentaSicar:30065,observacion:'',sicarArchivo:'SICAR_27-08_Troncoso.pdf'},
@@ -620,7 +640,7 @@ function seedData(){return {
 };}
 
 // ════════════════ ESTADO Y ALMACENAMIENTO ════════════════
-const ARRAY_KEYS=['ventas','facturacion','inventario','ml','oportunidades','servicio','egresos','nomina','comisiones','compras','clientesB2B','creditos','cobranzas','stockMin','cortesCaja','cajaMovimientos','saldos','activity','notifications'];
+const ARRAY_KEYS=['categoriasGastos','ventas','facturacion','inventario','ml','oportunidades','servicio','egresos','nomina','comisiones','compras','clientesB2B','creditos','cobranzas','stockMin','cortesCaja','cajaMovimientos','saldos','activity','notifications'];
 function loadState(){
   let s=null;
   try{s=JSON.parse(localStorage.getItem(STORE_KEY)||'null')}catch(e){s=null}
@@ -1662,7 +1682,7 @@ function permisos(){
 function toggleModule(k,on){S.config.moduleFlags[k]=!!on;save();applyPerms();toast(on?'Módulo activado':'Módulo apagado para los demás usuarios');render('permisos')}
 
 // ════════════════ ARRANQUE ════════════════
-const PAGES={home,ventas,ventas_admin:ventasAdmin,mano_obra,sucursales,servicio,servicio_stats,credito,caja,finanzas,reportes,facturacion,inventario,ml,oportunidades,compras,clientes,nomina,comisiones,excel,permisos};
+const PAGES={home,ventas,ventas_admin:ventasAdmin,mano_obra,sucursales,proveedores,gastos,servicio,servicio_stats,credito,caja,finanzas,reportes,facturacion,inventario,ml,oportunidades,compras,clientes,nomina,comisiones,excel,permisos};
 document.querySelectorAll('#nav button[data-page]').forEach(b=>b.addEventListener('click',()=>render(b.dataset.page)));
 document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
 aplicarPrefs();
