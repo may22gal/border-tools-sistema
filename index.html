@@ -1663,8 +1663,8 @@ function openEgreso(grupo='gastos'){
   <div class="form-grid">
     <div class="field"><label>Fecha de pago / cargo</label><input id="e_fecha" type="date" value="${todayBiz()}"></div>
     <div class="field"><label>Sucursal</label><select id="e_suc" onchange="if(this.value!=='Ambas')document.getElementById('e_cajasuc').value=this.value">${sucOptions(defaultSuc(),{ambas:true})}</select></div>
-    <div class="field full"><label>${esProveedor?'Proveedor / empresa':'Descripción del gasto'}</label><input id="e_concepto" placeholder="${esProveedor?'Ej. Makita México':'Ej. Pago de energía eléctrica'}"></div>
-    ${esProveedor?`<div class="field"><label>Proveedor</label><input id="e_prov" placeholder="Nombre del proveedor"></div><div class="field"><label>Tipo</label><select id="e_cat"><option>Mercancía / Proveedores</option><option>Refacciones</option><option>Mercancía USA</option></select></div>`
+    <div class="field full"><label>${esProveedor?'Concepto del pago (qué se compró)':'Descripción del gasto'}</label><input id="e_concepto" placeholder="${esProveedor?'Ej. 5 taladros, factura 1234':'Ej. Pago de energía eléctrica'}"></div>
+    ${esProveedor?`<div class="field"><label>Proveedor / empresa</label><input id="e_prov" placeholder="Ej. Makita México"></div><div class="field"><label>Tipo</label><select id="e_cat"><option>Mercancía / Proveedores</option><option>Refacciones</option><option>Mercancía USA</option></select></div>`
       :`<div class="field"><label>Tipo de gasto</label><select id="e_cat">${categorias.map(x=>`<option>${h(x.nombre)}</option>`).join('')}</select></div><div class="field"><label>Beneficiario (opcional)</label><input id="e_prov"></div>`}
     <div class="field"><label>Monto</label><input id="e_monto" type="number" step="0.01" min="0" placeholder="0.00"></div>
     ${camposPago('e',defaultSuc())}
@@ -1769,15 +1769,27 @@ function saveAbonoB2B(i){const x=S.clientesB2B[i],ab=registrarAbono('ab',{credit
 function nomina(){
   const p=getReportPeriod(),suc=sucName(),personal=filterSuc(S.nomina);
   const pagos=S.egresos.filter(x=>inReportRange(x.fecha,p)&&grupoEgreso(x)==='nomina'&&egresoMontoAsignado(x,suc)>0);
+  const pagosHistoricos=S.egresos.filter(x=>grupoEgreso(x)==='nomina'&&Number(x.monto)>0);
   const total=r2(pagos.reduce((a,x)=>a+egresoAsignado(x,suc),0));
-  return `${head('Nómina','Primero da de alta al empleado. Después registra cada pago real con fecha y forma de pago.',`<button class="primary" onclick="openEmpleado()">+ Dar de alta empleado</button>`)}
+  return `${head('Nómina','Primero da de alta al empleado. Después registra cada pago real con fecha y forma de pago.',`<button class="primary" onclick="openEmpleado()">+ Dar de alta empleado</button>${pagosHistoricos.length?'<button class="secondary" onclick="verUltimoPagoNomina()">Ver último pago registrado</button>':''}`)}
   ${sucTabs()}${reportControls()}
   <div class="grid3">${kpi('Empleados',personal.length,'Catálogo de personal')}${kpi('Nómina pagada',money(total),'Dentro del período seleccionado')}${kpi('Pagos registrados',pagos.length,'Se cuentan una sola vez en Finanzas')}</div>
   <div class="card" style="margin-top:13px"><h3>Personal</h3><div class="table-wrap"><table><thead><tr><th>Empleado</th><th>Sucursal</th><th>Puesto</th><th>Sueldo de referencia</th><th>Último pago</th><th></th></tr></thead>
     <tbody>${personal.map(x=>{const i=S.nomina.indexOf(x);return `<tr><td><b>${h(x.nombre)}</b></td><td>${sucBadge(x.sucursal)}</td><td>${h(x.rol||'—')}</td><td>${Number(x.sueldo)>0?moneyC(x.sueldo):'Sin establecer'}</td><td>${h(x.ultimoPago||'—')}</td><td><button class="secondary" onclick="openPago('nomina',${i})">+ Registrar pago</button></td></tr>`}).join('')||'<tr><td colspan="6">No hay empleados. Da de alta al primero.</td></tr>'}</tbody>
   </table></div></div>
-  <div class="card" style="margin-top:13px"><h3>Pagos de nómina realizados en el período</h3><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Empleado</th><th>Período pagado</th><th>Sucursal</th><th>Forma</th><th>Importe</th></tr></thead>
+  <div class="card" style="margin-top:13px"><h3>Pagos de nómina realizados en el período</h3>
+  <p class="small muted">Solo aparecen pagos con fecha real dentro de ${periodLabel(p)} y de ${suc||'ambas sucursales'}.</p>
+  ${!pagos.length&&pagosHistoricos.length?'<div class="callout">Tienes pagos guardados en otras fechas o sucursales. Usa «Ver último pago registrado» o cambia los filtros.</div>':''}
+  <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Empleado</th><th>Período pagado</th><th>Sucursal</th><th>Forma</th><th>Importe</th></tr></thead>
   <tbody>${pagos.map(x=>`<tr><td>${h(x.fecha)}</td><td>${h(x.proveedor)}</td><td>${h(x.periodo||'—')}</td><td>${sucBadge(x.sucursal)}</td><td>${h(formatoPagoEgreso(x))}</td><td>${moneyC(egresoMontoAsignado(x,suc))}</td></tr>`).join('')||'<tr><td colspan="6">Sin pagos en el período.</td></tr>'}</tbody></table></div></div>`;
+}
+// Facilita localizar pagos cuando el filtro anterior correspondía a otra semana.
+function verUltimoPagoNomina(){
+  const ultimo=S.egresos.filter(x=>grupoEgreso(x)==='nomina'&&Number(x.monto)>0).sort((a,b)=>String(b.fecha||'').localeCompare(String(a.fecha||'')))[0];
+  if(!ultimo)return toast('No hay pagos de nómina registrados');
+  reportMode='week';reportAnchor=ultimo.fecha;reportCustomStart='';reportCustomEnd='';
+  if(!lockedSuc())currentSuc='all';
+  render('nomina');
 }
 function openEmpleado(){
   if(!can('egreso'))return toast('Tu usuario no administra la nómina');
@@ -1858,7 +1870,11 @@ function savePago(tipo,i){
   const pay=Object.assign({id:'EG-'+Date.now(),grupo:tipo,fecha,periodo,concepto:(tipo==='nomina'?'Pago nómina':'Pago comisión')+' · '+x.nombre,categoria:tipo==='nomina'?'Nómina':'Comisiones vendedores',proveedor:x.nombre,monto,sucursal:x.sucursal,origenId:x.id,empleadoId:tipo==='nomina'?x.id:(x.empleadoId||'')},leerPago('pg',x.sucursal));
   S.egresos.unshift(pay);
   logAct((tipo==='nomina'?'Nómina':'Comisión')+' pagada · '+x.nombre+' · '+monto+' · '+periodo,x.sucursal);
-  save();closeModal();toast('Pago guardado ✓ · reflejado en Finanzas');render(tipo);
+  save();closeModal();
+  // Al guardar, abrir la semana efectiva del pago para que sea visible en la tabla.
+  reportMode='week';reportAnchor=fecha;reportCustomStart='';reportCustomEnd='';
+  if(!lockedSuc()&&sucName()&&sucName()!==x.sucursal)currentSuc='all';
+  toast('Pago guardado ✓ · visible en el período de pago');render(tipo);
 }
 function deshacerPago(tipo,i){
   if(role!=='direccion')return toast('Solo el Director puede revertir un pago');
