@@ -824,7 +824,13 @@ function grupoEgreso(x){
   return 'gastos';
 }
 function totalEgresosGrupo(p,suc,grupo){return r2(S.egresos.filter(x=>inReportRange(x.fecha,p)&&grupoEgreso(x)===grupo).reduce((a,x)=>a+egresoAsignado(x,suc),0))}
-function formatoPagoEgreso(x){return x.pagoAplazado?'Tarjeta de crédito · pendiente de liquidar':x.metodo||'Sin especificar'}
+function formatoPagoEgreso(x){return x.pagoAplazado?'Tarjeta de crédito · '+estadoCargoTarjeta(x).toLowerCase():x.metodo||'Sin especificar'}
+function liquidacionesDeCargo(x){return !x.id?[]:S.egresos.filter(e=>e.origenCargoId===x.id && Number(e.monto)>0)}
+function saldoCargoTarjeta(x){if(!x.pagoAplazado)return 0;const pagos=liquidacionesDeCargo(x).reduce((a,e)=>a+Number(e.monto||0),0);return Math.max(0,r2(Number(x.monto||0)-pagos))}
+function saldoCargoAsignado(x,suc){if(!x.pagoAplazado)return 0;const original=Number(x.monto)||0;return original>0?r2(saldoCargoTarjeta(x)*egresoMontoAsignado(x,suc)/original):0}
+function estadoCargoTarjeta(x){if(!x.pagoAplazado)return 'Pagado';const sal=saldoCargoTarjeta(x);if(sal<0.01)return 'Liquidado';return sal<Number(x.monto)-0.009?'Parcialmente liquidado':'Pendiente de liquidar'}
+function cargosPendientesTarjeta(suc){return S.egresos.filter(x=>x.pagoAplazado&&saldoCargoTarjeta(x)>0.009&&egresoMontoAsignado(x,suc)>0)}
+function estadoCargoBadge(x){const e=estadoCargoTarjeta(x);return x.pagoAplazado&&saldoCargoTarjeta(x)>0.009?'<span class="badge b-amber">'+h(e)+'</span>':'<span class="badge b-green">'+h(e)+'</span>'}
 function egresoCajaSuc(x){return x.impactaCajaFisica?(x.sucursal==='Ambas'?(x.cajaSucursal||''):(x.cajaSucursal||x.sucursal)):''}
 function egresoCaja(x,suc){if(!x.impactaCajaFisica)return 0;const m=Number(x.monto)||0;if(!suc)return m;return egresoCajaSuc(x)===suc?m:0}
 function movEfectivo(x){return (Number(x.entrada)||0)-(Number(x.salida)||0)}
@@ -1517,9 +1523,9 @@ function finanzas(){
   const eg=S.egresos.filter(x=>inReportRange(x.fecha,p)&&egresoMontoAsignado(x,suc)>0);
   const grupos=resumenCuatroEgresos(p,suc);
   const totalDetalle=r2(grupos.reduce((a,x)=>a+x.total,0));
-  const sinLiquidar=r2(eg.filter(x=>x.pagoAplazado).reduce((a,x)=>a+egresoMontoAsignado(x,suc),0));
+  const sinLiquidar=r2(cargosPendientesTarjeta(suc).reduce((a,x)=>a+saldoCargoAsignado(x,suc),0));
   return `${head('Finanzas · Ingresos y egresos','Registra los pagos en su sección. Aquí se reúnen automáticamente sin volverlos a capturar.',
-    `<button class="secondary" onclick="exportarEgresos()">Exportar egresos</button>${can('saldos')?'<button class="secondary" onclick="openSaldos()">Saldos disponibles</button>':''}`)}
+    `<button class="secondary" onclick="exportarEgresos()">Exportar egresos</button>${can('egreso')?'<button class="primary" onclick="verCargosTarjeta()">💳 Liquidar cargos de tarjeta</button>':''}${can('saldos')?'<button class="secondary" onclick="openSaldos()">Saldos disponibles</button>':''}`)}
   ${sucTabs()}${reportControls()}
   <div class="callout"><b>Balance de dinero:</b> ${money(t.received)} cobrado − ${money(t.egresos)} pagado = <b>${money(t.flujo)}</b> de flujo neto. <b>No es utilidad</b> ni dinero en el banco: para eso se necesitan costos y saldos reales.</div>
   <div class="grid4">
@@ -1544,7 +1550,7 @@ function finanzas(){
       <div class="rline"><span><b>Total pagado</b></span><b>${moneyC(totalDetalle)}</b></div>
       ${Math.abs(totalDetalle-t.egresos)>0.011?'<div class="warnbox">Revisar: el desglose no coincide con los egresos consolidados.</div>':''}
       <div class="formula" style="margin-top:8px">Los cargos a tarjeta de crédito aún no liquidados aparecen pendientes, no como salidas de efectivo.</div>
-      ${sinLiquidar>0?`<div class="rline"><span>Cargos pendientes de liquidar</span><b>${moneyC(sinLiquidar)}</b></div>`:''}
+      ${sinLiquidar>0?`<div class="rline"><span>Saldo pendiente de tarjeta (histórico)</span><b>${moneyC(sinLiquidar)}</b></div>`:''}
     </div>
   </div>
   ${cardTransferencias(suc)}
@@ -1555,7 +1561,7 @@ function finanzas(){
   </div>
   <div class="card" style="margin-top:13px"><h3>Detalle de movimientos · pagados y pendientes</h3>
     <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Sucursal</th><th>Forma</th><th>Importe</th><th>Estado</th></tr></thead>
-    <tbody>${eg.map(x=>`<tr><td>${h(x.fecha)}</td><td>${h(({proveedores:'Proveedores',nomina:'Nómina',comisiones:'Comisiones',gastos:'Gastos'})[grupoEgreso(x)])}</td><td>${h(x.concepto)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(formatoPagoEgreso(x))}</td><td>${moneyC(egresoMontoAsignado(x,suc))}</td><td>${x.pagoAplazado?'Pendiente de liquidar':'Pagado'}</td></tr>`).join('')||'<tr><td colspan="7">Sin movimientos.</td></tr>'}</tbody></table></div></div>`;
+    <tbody>${eg.map(x=>`<tr><td>${h(x.fecha)}</td><td>${h(({proveedores:'Proveedores',nomina:'Nómina',comisiones:'Comisiones',gastos:'Gastos'})[grupoEgreso(x)])}</td><td>${h(x.concepto)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(formatoPagoEgreso(x))}</td><td>${moneyC(egresoMontoAsignado(x,suc))}</td><td>${h(estadoCargoTarjeta(x))}${x.pagoAplazado&&saldoCargoTarjeta(x)>0.009&&can('egreso')?` <button class="secondary" onclick="abrirLiquidarCargo(${S.egresos.indexOf(x)})">Liquidar</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7">Sin movimientos.</td></tr>'}</tbody></table></div></div>`;
 }
 function camposPago(prefix,suc){
   return `<div class="field"><label>Forma de pago</label><select id="${prefix}_metodo" onchange="syncCajaPago('${prefix}')">${METODOS.map(m=>`<option>${m}</option>`).join('')}</select></div>
@@ -1576,24 +1582,56 @@ function egresosGrupoPagina(grupo){
   const esProveedor=grupo==='proveedores',p=getReportPeriod(),suc=sucName();
   const list=S.egresos.filter(x=>inReportRange(x.fecha,p)&&grupoEgreso(x)===grupo&&egresoMontoAsignado(x,suc)>0);
   const pagado=r2(list.reduce((a,x)=>a+egresoAsignado(x,suc),0));
-  const porLiquidar=r2(list.reduce((a,x)=>a+(x.pagoAplazado?egresoMontoAsignado(x,suc):0),0));
+  const porLiquidar=r2(cargosPendientesTarjeta(suc).filter(x=>grupoEgreso(x)===grupo).reduce((a,x)=>a+saldoCargoAsignado(x,suc),0));
   return `${head(esProveedor?'Pago a proveedores':'Gastos generales',esProveedor?'Solo pagos realizados por mercancía y refacciones, no órdenes de compra.':'Gastos reales pagados. Crea tus propias categorías sin duplicar nómina, comisiones ni proveedores.',`
   <button class="primary" onclick="openEgreso('${grupo}')">+ ${esProveedor?'Registrar pago':'Registrar gasto'}</button>
-  ${!esProveedor?'<button class="secondary" onclick="administrarCategoriasGastos()">Administrar tipos de gasto</button>':''}`)}
+  ${!esProveedor?'<button class="secondary" onclick="administrarCategoriasGastos()">Administrar tipos de gasto</button>':''}<button class="secondary" onclick="verCargosTarjeta()">💳 Liquidar cargos de tarjeta</button>`)}
   ${sucTabs()}${reportControls()}
   <div class="grid3">
     ${kpi('Salidas de dinero',money(pagado),'Pagos efectivos del período')}
-    ${kpi('Cargos pendientes en tarjeta',money(porLiquidar),'Aún no salen del banco')}
+    ${kpi('Saldo pendiente en tarjeta',money(porLiquidar),'De todos los períodos, no sale del banco')}
     ${kpi('Movimientos',list.length,'Pagos y cargos registrados')}
   </div>
   <div class="card" style="margin-top:13px"><h3>${esProveedor?'Pagos a proveedores':'Detalle de gastos'}</h3><div class="table-wrap"><table>
     <thead><tr><th>Fecha</th><th>Sucursal</th><th>${esProveedor?'Proveedor':'Tipo de gasto'}</th><th>Concepto</th><th>Forma de pago</th><th>Monto</th><th>Estado</th></tr></thead>
-    <tbody>${list.map(x=>`<tr><td>${h(x.fecha)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(esProveedor?x.proveedor:x.categoria)}</td><td>${h(x.concepto)}</td><td>${h(formatoPagoEgreso(x))}</td><td>${moneyC(egresoMontoAsignado(x,suc))}</td><td>${x.pagoAplazado?'<span class="badge b-amber">Sin liquidar</span>':'<span class="badge b-green">Pagado</span>'}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Sin movimientos de este tipo en el período.</td></tr>'}</tbody>
+    <tbody>${list.map(x=>`<tr><td>${h(x.fecha)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(esProveedor?x.proveedor:x.categoria)}</td><td>${h(x.concepto)}</td><td>${h(formatoPagoEgreso(x))}</td><td>${moneyC(egresoMontoAsignado(x,suc))}</td><td>${estadoCargoBadge(x)}${x.pagoAplazado&&saldoCargoTarjeta(x)>0.009&&can('egreso')?` <button class="secondary" onclick="abrirLiquidarCargo(${S.egresos.indexOf(x)})">Liquidar</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Sin movimientos de este tipo en el período.</td></tr>'}</tbody>
   </table></div></div>
-  <div class="callout" style="margin-top:13px">Los pagos con tarjeta de crédito pendientes de liquidar se muestran aquí, pero NO bajan el dinero disponible ni se duplican en el flujo. Cuando realmente se pague la tarjeta, regístralo en Gastos → Pago de tarjeta de crédito.</div>`;
+  <div class="callout" style="margin-top:13px">Los pagos con tarjeta de crédito pendientes de liquidar se muestran aquí, pero NO bajan el dinero disponible ni se duplican en el flujo. Cuando se pague la tarjeta, usa el botón «💳 Liquidar cargos de tarjeta» para registrar el pago y actualizar el saldo sin duplicarlo.</div>`;
 }
 function proveedores(){return egresosGrupoPagina('proveedores')}
 function gastos(){return egresosGrupoPagina('gastos')}
+function verCargosTarjeta(){
+  if(!can('egreso'))return toast('Tu usuario no registra pagos');
+  const pendientes=cargosPendientesTarjeta(sucName());
+  openModal('💳 Cargos de tarjeta de crédito',`<div class="callout">Aquí puedes liquidar un cargo completo o registrar un abono parcial. La salida de dinero aparecerá en Gastos y Finanzas con la fecha REAL del pago.</div>
+    <div class="card" style="margin-top:12px"><h3>Cargos por liquidar</h3>
+    ${pendientes.length?pendientes.map(x=>`<div class="rline"><span><b>${h(x.concepto)}</b> · ${h(x.fecha)} · ${h(x.sucursal)}<br><small>${h(estadoCargoTarjeta(x))} · Saldo ${moneyC(saldoCargoTarjeta(x))} de ${moneyC(x.monto)}</small></span><button class="secondary" onclick="abrirLiquidarCargo(${S.egresos.indexOf(x)})">Registrar pago</button></div>`).join(''):'<span class="muted small">No hay cargos pendientes por liquidar.</span>'}</div>
+    <p class="small muted" style="margin-top:10px">Si ya capturaste un pago de tarjeta como gasto general sin asociarlo a un cargo, no lo vuelvas a registrar: primero hay que conciliarlo para evitar duplicaciones.</p>`);
+}
+function abrirLiquidarCargo(i){
+  if(!can('egreso'))return toast('Tu usuario no registra pagos');
+  const x=S.egresos[i];if(!x||!x.pagoAplazado)return toast('No es un cargo de tarjeta');
+  const pendiente=saldoCargoTarjeta(x);if(pendiente<0.01)return toast('Este cargo ya está liquidado');
+  openModal('Registrar pago de tarjeta',`<div class="callout"><b>${h(x.concepto)}</b> · ${h(x.sucursal)}<br>Importe original: <b>${moneyC(x.monto)}</b><br>Saldo por liquidar: <b>${moneyC(pendiente)}</b>.</div>
+  <div class="form-grid" style="margin-top:12px">
+    <div class="field"><label>Fecha real en que salió el dinero</label><input id="lt_fecha" type="date" value="${todayBiz()}"></div>
+    <div class="field"><label>Monto pagado (puede ser parcial)</label><input id="lt_monto" type="number" min="0.01" step="0.01" max="${pendiente}" value="${pendiente}"></div>
+    <div class="field full"><label>Referencia o tarjeta (opcional)</label><input id="lt_referencia" placeholder="Ej. BBVA terminación 1234"></div>
+    ${camposPago('lt',x.sucursal==='Ambas'?defaultSuc():x.sucursal)}</div>
+  <div style="margin-top:14px"><button class="primary" onclick="guardarLiquidacionCargo(${i})">Confirmar pago y actualizar saldo</button></div>`);
+  document.getElementById('lt_metodo').value='Transferencia';syncCajaPago('lt');
+}
+function guardarLiquidacionCargo(i){
+  if(!can('egreso'))return toast('Tu usuario no registra pagos');
+  const x=S.egresos[i];if(!x||!x.pagoAplazado)return toast('No es un cargo válido');
+  const pendiente=saldoCargoTarjeta(x),monto=r2(num('lt_monto')),fecha=val('lt_fecha');
+  if(!fecha||monto<=0||monto>pendiente+0.001)return toast('Revisa fecha y monto: no puede superar el saldo pendiente');
+  if(!x.id)x.id='EG-LEGACY-'+Date.now()+'-'+Math.floor(Math.random()*100000);
+  const pago=Object.assign({id:'EG-LIQ-'+Date.now()+'-'+Math.floor(Math.random()*100000),fecha,grupo:'gastos',categoria:'Pago de tarjeta de crédito',concepto:'Liquidación tarjeta · '+x.concepto,proveedor:val('lt_referencia').trim()||x.proveedor||'Tarjeta de crédito',monto,sucursal:x.sucursal,origenCargoId:x.id,pagoAplazado:false},leerPago('lt',x.sucursal));
+  S.egresos.unshift(pago);
+  logAct('Tarjeta: pago '+monto+' de '+x.concepto+' · saldo '+saldoCargoTarjeta(x),x.sucursal);
+  save();closeModal();toast(saldoCargoTarjeta(x)<0.01?'Cargo liquidado ✓':'Abono registrado · saldo actualizado ✓');render(currentPage);
+}
 function administrarCategoriasGastos(){
   if(!can('egreso'))return toast('No tienes permiso para cambiar categorías');
   const cats=S.categoriasGastos.filter(x=>x.activo!==false);
@@ -1632,7 +1670,7 @@ function openEgreso(grupo='gastos'){
     ${camposPago('e',defaultSuc())}
     <div class="field full" id="e_credito_box" style="display:none"><label>¿Se cargó a una tarjeta de crédito y se pagará después?</label>
       <select id="e_credito"><option value="0">No, ya salió de la cuenta</option><option value="1">Sí, todavía NO salió del banco</option></select></div>
-  </div><div class="small muted" style="margin-top:8px">Para pagos de tarjeta de crédito, usa el tipo «Pago de tarjeta de crédito». No registres dos veces el mismo dinero.</div>
+  </div><div class="small muted" style="margin-top:8px">Si ya existe un cargo pendiente en el sistema, usa «Liquidar cargos de tarjeta» para registrar su pago. «Pago de tarjeta de crédito» es solo para pagos anteriores no vinculados.</div>
   <div style="margin-top:14px"><button class="primary" onclick="saveEgreso('${grupo}')">Guardar ${esProveedor?'pago':'gasto'}</button></div>`);
   document.getElementById('e_metodo').value='Transferencia';
   document.getElementById('e_metodo').addEventListener('change',actualizarCargoTarjeta);
@@ -1838,7 +1876,7 @@ function exportarCSV(nombre,cols,filas){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${nombre}_${todayBiz()}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Archivo descargado ✓');
 }
 function exportarCortes(){const p=getReportPeriod();exportarCSV('BT_cortes',['Fecha','Sucursal','Responsable','Efectivo','Transferencia','Estado transferencia','Tarjeta','Cheque','Credito','Mano de obra','Venta SICAR','Diferencia cuadre','Servicio incluido','Evidencia','Observacion'],filterPeriod(filterSuc(S.ventas),'fecha',p).map(x=>[x.fecha,x.sucursal,x.responsable,r2(x.efectivo),r2(x.transferencia),x.transferenciaStatus,r2(x.tarjeta),r2(x.cheque),r2(x.credito),r2(x.manoObra),r2(x.totalVentaSicar),cuadreCorte(x),servicioDelDia(x.fecha,x.sucursal),x.sicarArchivo||'SIN PDF',x.observacion||'']))}
-function exportarEgresos(){const p=getReportPeriod();exportarCSV('BT_egresos',['Fecha','Tipo de egreso','Concepto','Categoria','Proveedor','Sucursal','Forma de pago','Caja fisica','Monto','Pendiente de liquidar','Periodo pagado'],filterPeriod(S.egresos,'fecha',p).map(x=>[x.fecha,grupoEgreso(x),x.concepto,x.categoria,x.proveedor,x.sucursal,x.metodo,x.impactaCajaFisica?egresoCajaSuc(x):'No',r2(x.monto),x.pagoAplazado?'Sí':'No',x.periodo||'']))}
+function exportarEgresos(){const p=getReportPeriod();exportarCSV('BT_egresos',['Fecha','Tipo de egreso','Concepto','Categoria','Proveedor','Sucursal','Forma de pago','Caja fisica','Monto','Estado de tarjeta','Periodo pagado'],filterPeriod(S.egresos,'fecha',p).map(x=>[x.fecha,grupoEgreso(x),x.concepto,x.categoria,x.proveedor,x.sucursal,x.metodo,x.impactaCajaFisica?egresoCajaSuc(x):'No',r2(x.monto),estadoCargoTarjeta(x),x.periodo||'']))}
 function exportarCobranza(){const p=getReportPeriod();exportarCSV('BT_cobranza',['Fecha','Cliente','Credito','Sucursal','Forma de pago','Estado transferencia','Monto'],filterPeriod(filterSuc(S.cobranzas),'fecha',p).map(x=>[x.fecha,x.cliente,x.creditoId||'',x.sucursal,x.metodo,x.transferenciaStatus||'',r2(x.monto)]))}
 
 // ════════════════ CONTROL DEL SISTEMA (Director) ════════════════
