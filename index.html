@@ -1613,9 +1613,11 @@ function egresoSePuedeAnular(x){
   return can('egreso')&&!x.anulado&&(!x.pagoAplazado||!liquidacionesDeCargo(x).length);
 }
 function accionesEgreso(x){
-  if(!can('egreso')||x.anulado)return '';
+  if(!can('egreso'))return '';
   const i=S.egresos.indexOf(x);
-  let botones=egresoSePuedeEditar(x)?'<button class="secondary" onclick="editarEgreso('+i+')">Editar</button>':'';
+  const cambios=Array.isArray(x.historialCambios)&&x.historialCambios.length?'<button class="secondary" onclick="verHistorialEgreso('+i+')">Historial</button>':'';
+  if(x.anulado)return cambios;
+  let botones=(egresoSePuedeEditar(x)?'<button class="secondary" onclick="editarEgreso('+i+')">Editar</button>':'')+cambios;
   if(!egresoSePuedeAnular(x))return botones;
   if(x.solicitudAnulacion&&x.solicitudAnulacion.estado==='Pendiente'){
     return botones+' <span class="badge b-amber">Anulación pendiente</span>';
@@ -1639,13 +1641,26 @@ function solicitudesAnulacionHtml(){
   if(role!=='direccion')return '';
   const pendientes=S.egresos.filter(x=>!x.anulado&&x.solicitudAnulacion&&x.solicitudAnulacion.estado==='Pendiente');
   if(!pendientes.length)return '';
-  return '<div class="card" style="margin-top:13px"><h3>Solicitudes de anulación por revisar ('+pendientes.length+')</h3>'+
+  return '<div class="card" style="margin-top:13px"><h3>Solicitudes de anulación por revisar ('+pendientes.length+')</h3><p class="small muted">En la etapa demo estas solicitudes solo se comparten en este navegador.</p>'+
     pendientes.map(x=>'<div class="rline"><span><b>'+h(x.concepto)+'</b> · '+h(x.fecha)+' · '+moneyC(x.monto)+
     ' · '+h(x.sucursal)+'</span><span><button class="secondary" onclick="resolverAnulacionEgreso('+S.egresos.indexOf(x)+',true)">Autorizar anulación</button> '+
     '<button class="secondary" onclick="resolverAnulacionEgreso('+S.egresos.indexOf(x)+',false)">Rechazar</button></span></div>').join('')+'</div>';
 }
 
 
+function verHistorialEgreso(i){
+  if(!can('egreso'))return toast('Acceso restringido');
+  const x=S.egresos[i];if(!x)return;
+  const labels={fecha:'Fecha',sucursal:'Sucursal',concepto:'Concepto',proveedor:'Proveedor',categoria:'Categoría',monto:'Monto',
+    metodo:'Forma de pago',pagoAplazado:'Cargo pendiente tarjeta',impactaCajaFisica:'Salida de caja',cajaSucursal:'Caja'};
+  const historial=Array.isArray(x.historialCambios)?x.historialCambios:[];
+  openModal('Historial · '+h(x.concepto),historial.length?historial.map(c=>{
+    const cambios=c.anterior&&c.nuevo?Object.keys(c.nuevo).filter(k=>String(c.anterior[k])!==String(c.nuevo[k]))
+      .map(k=>'<div class="small">'+h(labels[k]||k)+': '+h(c.anterior[k])+' → '+h(c.nuevo[k])+'</div>').join(''):'';
+    return '<div class="card" style="margin-top:9px"><b>'+h(c.accion||'Movimiento corregido')+'</b><div class="small muted">'+
+      h(c.fecha||'')+' · '+h(c.usuario||'')+'</div>'+cambios+'</div>';
+  }).join(''):'<p class="muted small">Sin cambios registrados.</p>');
+}
 function editarEgreso(i){
   const x=S.egresos[i];if(!x||!egresoSePuedeEditar(x))return toast('Este movimiento tiene pagos relacionados o no permite edición directa');
   const prov=grupoEgreso(x)==='proveedores';
@@ -1686,6 +1701,7 @@ function guardarEdicionEgreso(i){
   const monto=r2(num('ed_monto')),categoria=val('ed_cat'),metodo=val('ed_metodo');
   if(!fecha||!concepto||monto<=0||!metodoValido(metodo))return toast('Captura fecha, concepto, monto y método válidos');
   if(grupoEgreso(x)==='proveedores'&&!proveedor)return toast('Captura el proveedor');
+  if(categoria==='Pago de tarjeta de crédito'&&metodo==='Tarjeta'&&val('ed_credito')==='1')return toast('Un pago de tarjeta no puede quedar como un nuevo cargo pendiente');
   const actual={fecha:x.fecha,sucursal:x.sucursal,concepto:x.concepto,proveedor:x.proveedor,categoria:x.categoria,monto:x.monto,
     metodo:x.metodo,pagoAplazado:!!x.pagoAplazado,impactaCajaFisica:!!x.impactaCajaFisica,cajaSucursal:x.cajaSucursal||''};
   const pago=leerPago('ed',suc);
@@ -1704,7 +1720,7 @@ function solicitarAnulacionEgreso(i){
   if(x.solicitudAnulacion&&x.solicitudAnulacion.estado==='Pendiente')return toast('La solicitud ya está pendiente');
   x.solicitudAnulacion={estado:'Pendiente',fecha:stamp(),usuario:ROLE_NAMES[role]||role};
   logAct('Solicitó anulación · '+x.concepto+' · '+x.monto,x.sucursal);
-  save();toast('Solicitud registrada para Dirección ✓');render(currentPage);
+  save();toast('Solicitud guardada aquí · avisa a Dirección ✓');render(currentPage);
 }
 function resolverAnulacionEgreso(i,autorizar){
   if(role!=='direccion')return toast('Solo Dirección puede autorizar anulaciones');
@@ -2022,7 +2038,7 @@ function exportarCSV(nombre,cols,filas){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${nombre}_${todayBiz()}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Archivo descargado ✓');
 }
 function exportarCortes(){const p=getReportPeriod();exportarCSV('BT_cortes',['Fecha','Sucursal','Responsable','Efectivo','Transferencia','Estado transferencia','Tarjeta','Cheque','Credito','Mano de obra','Venta SICAR','Diferencia cuadre','Servicio incluido','Evidencia','Observacion'],filterPeriod(filterSuc(S.ventas),'fecha',p).map(x=>[x.fecha,x.sucursal,x.responsable,r2(x.efectivo),r2(x.transferencia),x.transferenciaStatus,r2(x.tarjeta),r2(x.cheque),r2(x.credito),r2(x.manoObra),r2(x.totalVentaSicar),cuadreCorte(x),servicioDelDia(x.fecha,x.sucursal),x.sicarArchivo||'SIN PDF',x.observacion||'']))}
-function exportarEgresos(){const p=getReportPeriod();exportarCSV('BT_egresos',['Fecha','Tipo de egreso','Concepto','Categoria','Proveedor','Sucursal','Forma de pago','Caja fisica','Monto','Estado de movimiento','Estado de tarjeta','Periodo pagado','Correcciones'],filterPeriod(S.egresos,'fecha',p).map(x=>[x.fecha,grupoEgreso(x),x.concepto,x.categoria,x.proveedor,x.sucursal,x.metodo,x.impactaCajaFisica?egresoCajaSuc(x):'No',r2(x.monto),x.anulado?'Anulado':(x.solicitudAnulacion?.estado==='Pendiente'?'Anulación solicitada':'Vigente'),estadoCargoTarjeta(x),x.periodo||'',(x.historialCambios||[]).length]))}
+function exportarEgresos(){const p=getReportPeriod();exportarCSV('BT_egresos',['Fecha','Tipo de egreso','Concepto','Categoria','Proveedor','Sucursal','Forma de pago','Caja fisica','Monto','Estado de movimiento','Estado de tarjeta','Periodo pagado','Historial de cambios (detalle)'],filterPeriod(S.egresos,'fecha',p).map(x=>[x.fecha,grupoEgreso(x),x.concepto,x.categoria,x.proveedor,x.sucursal,x.metodo,x.impactaCajaFisica?egresoCajaSuc(x):'No',r2(x.monto),x.anulado?'Anulado':(x.solicitudAnulacion?.estado==='Pendiente'?'Anulación solicitada':'Vigente'),estadoCargoTarjeta(x),x.periodo||'',JSON.stringify(x.historialCambios||[])]))}
 function exportarCobranza(){const p=getReportPeriod();exportarCSV('BT_cobranza',['Fecha','Cliente','Credito','Sucursal','Forma de pago','Estado transferencia','Monto'],filterPeriod(filterSuc(S.cobranzas),'fecha',p).map(x=>[x.fecha,x.cliente,x.creditoId||'',x.sucursal,x.metodo,x.transferenciaStatus||'',r2(x.monto)]))}
 
 // ════════════════ CONTROL DEL SISTEMA (Director) ════════════════
