@@ -745,7 +745,7 @@ function defaultSuc(){return sucName()||'Granjero'}
 function latestBusinessDate(){
   const vals=[];const add=v=>{const d=parseBizDate(v);if(d)vals.push(d.getTime())};
   // Solo movimientos de dinero: una orden de servicio nueva no debe mover el período del Director a una semana vacía.
-  S.ventas.forEach(x=>add(x.fecha));S.egresos.forEach(x=>add(x.fecha));S.cobranzas.forEach(x=>add(x.fecha));
+  S.ventas.forEach(x=>add(x.fecha));S.egresos.filter(x=>!x.anulado).forEach(x=>add(x.fecha));S.cobranzas.forEach(x=>add(x.fecha));
   if(!vals.length)return todayBiz();
   return dateISO(new Date(Math.max(...vals)));
 }
@@ -814,7 +814,7 @@ function transferCuenta(x){const st=x.transferenciaStatus||'Aprobada';if(st==='R
 function metodoValido(m){return METODOS.includes(m)}
 function abonoCuenta(x){if(!metodoValido(x.metodo))return false;return x.metodo==='Transferencia'?transferCuenta(x):true}
 function egresoMontoAsignado(x,suc){const m=Number(x.monto)||0;if(!suc)return m;if(x.sucursal===suc)return m;if(x.sucursal==='Ambas')return m/2;return 0}
-function egresoAsignado(x,suc){return x.pagoAplazado?0:egresoMontoAsignado(x,suc)}
+function egresoAsignado(x,suc){return x.anulado||x.pagoAplazado?0:egresoMontoAsignado(x,suc)}
 function grupoEgreso(x){
   if(['proveedores','nomina','comisiones','gastos'].includes(x.grupo))return x.grupo;
   const c=String(x.categoria||'').toLowerCase();
@@ -825,14 +825,14 @@ function grupoEgreso(x){
 }
 function totalEgresosGrupo(p,suc,grupo){return r2(S.egresos.filter(x=>inReportRange(x.fecha,p)&&grupoEgreso(x)===grupo).reduce((a,x)=>a+egresoAsignado(x,suc),0))}
 function formatoPagoEgreso(x){return x.pagoAplazado?'Tarjeta de crédito · '+estadoCargoTarjeta(x).toLowerCase():x.metodo||'Sin especificar'}
-function liquidacionesDeCargo(x){return !x.id?[]:S.egresos.filter(e=>e.origenCargoId===x.id && Number(e.monto)>0)}
-function saldoCargoTarjeta(x){if(!x.pagoAplazado)return 0;const pagos=liquidacionesDeCargo(x).reduce((a,e)=>a+Number(e.monto||0),0);return Math.max(0,r2(Number(x.monto||0)-pagos))}
+function liquidacionesDeCargo(x){return !x.id?[]:S.egresos.filter(e=>!e.anulado&&e.origenCargoId===x.id && Number(e.monto)>0)}
+function saldoCargoTarjeta(x){if(x.anulado||!x.pagoAplazado)return 0;const pagos=liquidacionesDeCargo(x).reduce((a,e)=>a+Number(e.monto||0),0);return Math.max(0,r2(Number(x.monto||0)-pagos))}
 function saldoCargoAsignado(x,suc){if(!x.pagoAplazado)return 0;const original=Number(x.monto)||0;return original>0?r2(saldoCargoTarjeta(x)*egresoMontoAsignado(x,suc)/original):0}
-function estadoCargoTarjeta(x){if(!x.pagoAplazado)return 'Pagado';const sal=saldoCargoTarjeta(x);if(sal<0.01)return 'Liquidado';return sal<Number(x.monto)-0.009?'Parcialmente liquidado':'Pendiente de liquidar'}
+function estadoCargoTarjeta(x){if(x.anulado)return 'Anulado';if(!x.pagoAplazado)return 'Pagado';const sal=saldoCargoTarjeta(x);if(sal<0.01)return 'Liquidado';return sal<Number(x.monto)-0.009?'Parcialmente liquidado':'Pendiente de liquidar'}
 function cargosPendientesTarjeta(suc){return S.egresos.filter(x=>x.pagoAplazado&&saldoCargoTarjeta(x)>0.009&&egresoMontoAsignado(x,suc)>0)}
-function estadoCargoBadge(x){const e=estadoCargoTarjeta(x);return x.pagoAplazado&&saldoCargoTarjeta(x)>0.009?'<span class="badge b-amber">'+h(e)+'</span>':'<span class="badge b-green">'+h(e)+'</span>'}
+function estadoCargoBadge(x){const e=estadoCargoTarjeta(x);if(x.anulado)return '<span class="badge b-gray">Anulado</span>';return x.pagoAplazado&&saldoCargoTarjeta(x)>0.009?'<span class="badge b-amber">'+h(e)+'</span>':'<span class="badge b-green">'+h(e)+'</span>'}
 function egresoCajaSuc(x){return x.impactaCajaFisica?(x.sucursal==='Ambas'?(x.cajaSucursal||''):(x.cajaSucursal||x.sucursal)):''}
-function egresoCaja(x,suc){if(!x.impactaCajaFisica)return 0;const m=Number(x.monto)||0;if(!suc)return m;return egresoCajaSuc(x)===suc?m:0}
+function egresoCaja(x,suc){if(x.anulado||!x.impactaCajaFisica)return 0;const m=Number(x.monto)||0;if(!suc)return m;return egresoCajaSuc(x)===suc?m:0}
 function movEfectivo(x){return (Number(x.entrada)||0)-(Number(x.salida)||0)}
 function ventasDe(p,suc){return S.ventas.filter(x=>inReportRange(x.fecha,p)&&(!suc||x.sucursal===suc))}
 function abonosDe(p,suc){return S.cobranzas.filter(x=>inReportRange(x.fecha,p)&&(!suc||x.sucursal===suc))}
@@ -1559,9 +1559,11 @@ function finanzas(){
     ${kpi('Dinero disponible',dd.rows.length?money(dd.total):'Sin capturar',dd.rows.length?'Saldos de banco y caja registrados':'Captura tus saldos reales')}
     ${kpi('Mano de obra generada',money(t.mano),'Incluida en ventas SICAR')}
   </div>
+  ${movimientosRecientesHtml(null,8)}
+  ${solicitudesAnulacionHtml()}
   <div class="card" style="margin-top:13px"><h3>Detalle de movimientos · pagados y pendientes</h3>
     <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Sucursal</th><th>Forma</th><th>Importe</th><th>Estado</th></tr></thead>
-    <tbody>${eg.map(x=>`<tr><td>${h(x.fecha)}</td><td>${h(({proveedores:'Proveedores',nomina:'Nómina',comisiones:'Comisiones',gastos:'Gastos'})[grupoEgreso(x)])}</td><td>${h(x.concepto)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(formatoPagoEgreso(x))}</td><td>${moneyC(egresoMontoAsignado(x,suc))}</td><td>${h(estadoCargoTarjeta(x))}${x.pagoAplazado&&saldoCargoTarjeta(x)>0.009&&can('egreso')?` <button class="secondary" onclick="abrirLiquidarCargo(${S.egresos.indexOf(x)})">Liquidar</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7">Sin movimientos.</td></tr>'}</tbody></table></div></div>`;
+    <tbody>${eg.map(x=>`<tr><td>${h(x.fecha)}</td><td>${h(({proveedores:'Proveedores',nomina:'Nómina',comisiones:'Comisiones',gastos:'Gastos'})[grupoEgreso(x)])}</td><td>${h(x.concepto)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(formatoPagoEgreso(x))}</td><td>${moneyC(egresoMontoAsignado(x,suc))}</td><td>${h(estadoCargoTarjeta(x))}${x.pagoAplazado&&saldoCargoTarjeta(x)>0.009&&can('egreso')?` <button class="secondary" onclick="abrirLiquidarCargo(${S.egresos.indexOf(x)})">Liquidar</button>`:''}${accionesEgreso(x)}</td></tr>`).join('')||'<tr><td colspan="7">Sin movimientos.</td></tr>'}</tbody></table></div></div>`;
 }
 function camposPago(prefix,suc){
   return `<div class="field"><label>Forma de pago</label><select id="${prefix}_metodo" onchange="syncCajaPago('${prefix}')">${METODOS.map(m=>`<option>${m}</option>`).join('')}</select></div>
@@ -1592,14 +1594,158 @@ function egresosGrupoPagina(grupo){
     ${kpi('Saldo pendiente en tarjeta',money(porLiquidar),'De todos los períodos, no sale del banco')}
     ${kpi('Movimientos',list.length,'Pagos y cargos registrados')}
   </div>
+  ${movimientosRecientesHtml(grupo,6)}
   <div class="card" style="margin-top:13px"><h3>${esProveedor?'Pagos a proveedores':'Detalle de gastos'}</h3><div class="table-wrap"><table>
     <thead><tr><th>Fecha</th><th>Sucursal</th><th>${esProveedor?'Proveedor':'Tipo de gasto'}</th><th>Concepto</th><th>Forma de pago</th><th>Monto</th><th>Estado</th></tr></thead>
-    <tbody>${list.map(x=>`<tr><td>${h(x.fecha)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(esProveedor?x.proveedor:x.categoria)}</td><td>${h(x.concepto)}</td><td>${h(formatoPagoEgreso(x))}</td><td>${moneyC(egresoMontoAsignado(x,suc))}</td><td>${estadoCargoBadge(x)}${x.pagoAplazado&&saldoCargoTarjeta(x)>0.009&&can('egreso')?` <button class="secondary" onclick="abrirLiquidarCargo(${S.egresos.indexOf(x)})">Liquidar</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Sin movimientos de este tipo en el período.</td></tr>'}</tbody>
+    <tbody>${list.map(x=>`<tr><td>${h(x.fecha)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(esProveedor?x.proveedor:x.categoria)}</td><td>${h(x.concepto)}</td><td>${h(formatoPagoEgreso(x))}</td><td>${moneyC(egresoMontoAsignado(x,suc))}</td><td>${estadoCargoBadge(x)}${x.pagoAplazado&&saldoCargoTarjeta(x)>0.009&&can('egreso')?` <button class="secondary" onclick="abrirLiquidarCargo(${S.egresos.indexOf(x)})">Liquidar</button>`:''}${accionesEgreso(x)}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Sin movimientos de este tipo en el período.</td></tr>'}</tbody>
   </table></div></div>
   <div class="callout" style="margin-top:13px">Los pagos con tarjeta de crédito pendientes de liquidar se muestran aquí, pero NO bajan el dinero disponible ni se duplican en el flujo. Cuando se pague la tarjeta, usa el botón «💳 Liquidar cargos de tarjeta» para registrar el pago y actualizar el saldo sin duplicarlo.</div>`;
 }
 function proveedores(){return egresosGrupoPagina('proveedores')}
 function gastos(){return egresosGrupoPagina('gastos')}
+
+function egresoSePuedeEditar(x){
+  return can('egreso')&&!x.anulado&&!x.origenId&&!x.origenCargoId&&
+    (grupoEgreso(x)==='proveedores'||grupoEgreso(x)==='gastos')&&!liquidacionesDeCargo(x).length&&
+    (!x.solicitudAnulacion||x.solicitudAnulacion.estado!=='Pendiente');
+}
+function egresoSePuedeAnular(x){
+  return can('egreso')&&!x.anulado&&(!x.pagoAplazado||!liquidacionesDeCargo(x).length);
+}
+function accionesEgreso(x){
+  if(!can('egreso'))return '';
+  const i=S.egresos.indexOf(x);
+  const cambios=Array.isArray(x.historialCambios)&&x.historialCambios.length?'<button class="secondary" onclick="verHistorialEgreso('+i+')">Historial</button>':'';
+  if(x.anulado)return cambios;
+  let botones=(egresoSePuedeEditar(x)?'<button class="secondary" onclick="editarEgreso('+i+')">Editar</button>':'')+cambios;
+  if(!egresoSePuedeAnular(x))return botones;
+  if(x.solicitudAnulacion&&x.solicitudAnulacion.estado==='Pendiente'){
+    return botones+' <span class="badge b-amber">Anulación pendiente</span>';
+  }
+  return botones+' <button class="secondary" onclick="'+(role==='direccion'?'resolverAnulacionEgreso('+i+',true)':'solicitarAnulacionEgreso('+i+')')+'">'+(role==='direccion'?'Anular':'Solicitar anulación')+'</button>';
+}
+function movimientosRecientesHtml(grupo,max=6){
+  const suc=sucName();
+  const arr=S.egresos.filter(x=>(!grupo||grupoEgreso(x)===grupo)&&egresoMontoAsignado(x,suc)>0)
+    .slice().sort((a,b)=>String(b.fecha||'').localeCompare(String(a.fecha||''))).slice(0,max);
+  return '<div class="card" style="margin-top:13px"><h3>Últimos movimientos registrados</h3>'+
+    '<p class="small muted">Siempre visibles, aunque estés consultando otra semana o mes. No cambian los filtros del reporte.</p>'+
+    (arr.length?arr.map(x=>'<div class="rline"><span><b>'+h(x.fecha)+'</b> · '+h(x.concepto)+
+      ' <span class="small muted">('+h(({proveedores:'Proveedores',nomina:'Nómina',comisiones:'Comisiones',gastos:'Gastos'})[grupoEgreso(x)]||'Egreso')+
+      ' · '+h(x.sucursal)+' · '+h(x.metodo||'Sin método')+')</span><br><span class="small muted">'+h(x.proveedor||'')+
+      ' · '+h(x.anulado?'Anulado':estadoCargoTarjeta(x))+'</span></span><span><b>'+moneyC(egresoMontoAsignado(x,suc))+
+      '</b> '+accionesEgreso(x)+'</span></div>').join(''):'<span class="muted small">Sin movimientos capturados.</span>')+
+    '</div>';
+}
+function solicitudesAnulacionHtml(){
+  if(role!=='direccion')return '';
+  const pendientes=S.egresos.filter(x=>!x.anulado&&x.solicitudAnulacion&&x.solicitudAnulacion.estado==='Pendiente');
+  if(!pendientes.length)return '';
+  return '<div class="card" style="margin-top:13px"><h3>Solicitudes de anulación por revisar ('+pendientes.length+')</h3><p class="small muted">En la etapa demo estas solicitudes solo se comparten en este navegador.</p>'+
+    pendientes.map(x=>'<div class="rline"><span><b>'+h(x.concepto)+'</b> · '+h(x.fecha)+' · '+moneyC(x.monto)+
+    ' · '+h(x.sucursal)+'</span><span><button class="secondary" onclick="resolverAnulacionEgreso('+S.egresos.indexOf(x)+',true)">Autorizar anulación</button> '+
+    '<button class="secondary" onclick="resolverAnulacionEgreso('+S.egresos.indexOf(x)+',false)">Rechazar</button></span></div>').join('')+'</div>';
+}
+
+
+function verHistorialEgreso(i){
+  if(!can('egreso'))return toast('Acceso restringido');
+  const x=S.egresos[i];if(!x)return;
+  const labels={fecha:'Fecha',sucursal:'Sucursal',concepto:'Concepto',proveedor:'Proveedor',categoria:'Categoría',monto:'Monto',
+    metodo:'Forma de pago',pagoAplazado:'Cargo pendiente tarjeta',impactaCajaFisica:'Salida de caja',cajaSucursal:'Caja'};
+  const historial=Array.isArray(x.historialCambios)?x.historialCambios:[];
+  openModal('Historial · '+h(x.concepto),historial.length?historial.map(c=>{
+    const cambios=c.anterior&&c.nuevo?Object.keys(c.nuevo).filter(k=>String(c.anterior[k])!==String(c.nuevo[k]))
+      .map(k=>'<div class="small">'+h(labels[k]||k)+': '+h(c.anterior[k])+' → '+h(c.nuevo[k])+'</div>').join(''):'';
+    return '<div class="card" style="margin-top:9px"><b>'+h(c.accion||'Movimiento corregido')+'</b><div class="small muted">'+
+      h(c.fecha||'')+' · '+h(c.usuario||'')+'</div>'+cambios+'</div>';
+  }).join(''):'<p class="muted small">Sin cambios registrados.</p>');
+}
+function editarEgreso(i){
+  const x=S.egresos[i];if(!x||!egresoSePuedeEditar(x))return toast('Este movimiento tiene pagos relacionados o no permite edición directa');
+  const prov=grupoEgreso(x)==='proveedores';
+  const cats=prov?['Mercancía / Proveedores','Refacciones','Mercancía USA']:(S.categoriasGastos||[]).filter(c=>c.activo!==false).map(c=>c.nombre);
+  if(!cats.includes(x.categoria))cats.unshift(x.categoria||'Otros');
+  openModal('Editar '+(prov?'pago a proveedor':'gasto'),`<div class="callout">Corrige el registro existente; no se creará un gasto nuevo. Se guardará un historial de cambios.</div>
+    <div class="form-grid" style="margin-top:12px">
+      <div class="field"><label>Fecha del movimiento</label><input id="ed_fecha" type="date" value="${h(x.fecha)}"></div>
+      <div class="field"><label>Sucursal</label><select id="ed_suc">${sucOptions(x.sucursal,{ambas:true})}</select></div>
+      <div class="field full"><label>Concepto</label><input id="ed_concepto" value="${h(x.concepto)}"></div>
+      <div class="field"><label>${prov?'Proveedor':'Beneficiario (opcional)'}</label><input id="ed_prov" value="${h(x.proveedor||'')}"></div>
+      <div class="field"><label>${prov?'Tipo':'Tipo de gasto'}</label><select id="ed_cat">${cats.map(c=>`<option ${c===x.categoria?'selected':''}>${h(c)}</option>`).join('')}</select></div>
+      <div class="field"><label>Monto</label><input id="ed_monto" type="number" min="0.01" step="0.01" value="${Number(x.monto)||0}"></div>
+      ${camposPago('ed',x.sucursal==='Ambas'?defaultSuc():x.sucursal)}
+      <div class="field full" id="ed_credito_box" style="display:none"><label>¿Queda pendiente de liquidar en tarjeta?</label>
+        <select id="ed_credito"><option value="0">No, ya salió de la cuenta</option><option value="1">Sí, pendiente de liquidar</option></select></div>
+    </div>
+    ${Array.isArray(x.historialCambios)&&x.historialCambios.length?'<div class="small muted" style="margin-top:8px">Correcciones anteriores: '+x.historialCambios.map(c=>h(c.fecha)+' ('+h(c.usuario)+')').join(', ')+'</div>':''}
+    <div style="margin-top:14px"><button class="primary" onclick="guardarEdicionEgreso(${i})">Guardar cambios</button></div>`);
+  const metodo=document.getElementById('ed_metodo');
+  metodo.value=x.metodo||'Transferencia';
+  const c=document.getElementById('ed_caja');c.value=x.impactaCajaFisica?'1':'0';
+  const cs=document.getElementById('ed_cajasuc');if(x.cajaSucursal)cs.value=x.cajaSucursal;
+  document.getElementById('ed_credito').value=x.pagoAplazado?'1':'0';
+  metodo.addEventListener('change',actualizarCreditoEdicionEgreso);
+  actualizarCreditoEdicionEgreso();
+  syncCajaPago('ed');
+}
+function actualizarCreditoEdicionEgreso(){
+  const b=document.getElementById('ed_credito_box');if(!b)return;
+  const tarj=val('ed_metodo')==='Tarjeta';
+  b.style.display=tarj?'':'none';
+  if(!tarj)document.getElementById('ed_credito').value='0';
+}
+function guardarEdicionEgreso(i){
+  const x=S.egresos[i];if(!x||!egresoSePuedeEditar(x))return toast('No se puede editar este movimiento');
+  const suc=val('ed_suc'),fecha=val('ed_fecha'),concepto=val('ed_concepto').trim(),proveedor=val('ed_prov').trim();
+  const monto=r2(num('ed_monto')),categoria=val('ed_cat'),metodo=val('ed_metodo');
+  if(!fecha||!concepto||monto<=0||!metodoValido(metodo))return toast('Captura fecha, concepto, monto y método válidos');
+  if(grupoEgreso(x)==='proveedores'&&!proveedor)return toast('Captura el proveedor');
+  if(categoria==='Pago de tarjeta de crédito'&&metodo==='Tarjeta'&&val('ed_credito')==='1')return toast('Un pago de tarjeta no puede quedar como un nuevo cargo pendiente');
+  const actual={fecha:x.fecha,sucursal:x.sucursal,concepto:x.concepto,proveedor:x.proveedor,categoria:x.categoria,monto:x.monto,
+    metodo:x.metodo,pagoAplazado:!!x.pagoAplazado,impactaCajaFisica:!!x.impactaCajaFisica,cajaSucursal:x.cajaSucursal||''};
+  const pago=leerPago('ed',suc);
+  const nuevo={fecha,sucursal:suc,concepto,proveedor,categoria,monto,metodo,pagoAplazado:metodo==='Tarjeta'&&val('ed_credito')==='1',
+    impactaCajaFisica:pago.impactaCajaFisica,cajaSucursal:pago.cajaSucursal};
+  if(JSON.stringify(actual)===JSON.stringify(nuevo)){closeModal();return toast('Sin cambios');}
+  if(!Array.isArray(x.historialCambios))x.historialCambios=[];
+  x.historialCambios.push({fecha:stamp(),usuario:ROLE_NAMES[role]||role,anterior:actual,nuevo});
+  Object.assign(x,nuevo);
+  logAct('Corrección de egreso · '+concepto+' · '+monto+' (anterior '+actual.monto+')',suc);
+  save();closeModal();toast('Movimiento actualizado ✓');render(currentPage);
+}
+function solicitarAnulacionEgreso(i){
+  const x=S.egresos[i];if(!x||!egresoSePuedeAnular(x))return toast('No se puede anular; revisa primero los pagos relacionados');
+  if(role==='direccion')return resolverAnulacionEgreso(i,true);
+  if(x.solicitudAnulacion&&x.solicitudAnulacion.estado==='Pendiente')return toast('La solicitud ya está pendiente');
+  x.solicitudAnulacion={estado:'Pendiente',fecha:stamp(),usuario:ROLE_NAMES[role]||role};
+  logAct('Solicitó anulación · '+x.concepto+' · '+x.monto,x.sucursal);
+  save();toast('Solicitud guardada aquí · avisa a Dirección ✓');render(currentPage);
+}
+function resolverAnulacionEgreso(i,autorizar){
+  if(role!=='direccion')return toast('Solo Dirección puede autorizar anulaciones');
+  const x=S.egresos[i];if(!x||x.anulado)return toast('Movimiento no disponible');
+  if(autorizar&&!egresoSePuedeAnular(x))return toast('No se puede anular un cargo con abonos relacionados');
+  if(autorizar&&!confirm('¿Anular el movimiento de '+x.concepto+' por '+(Number(x.monto)||0)+'? Se conservará en el historial y dejará de contar en los totales.'))return;
+  if(!Array.isArray(x.historialCambios))x.historialCambios=[];
+  x.historialCambios.push({fecha:stamp(),usuario:'Dirección',accion:autorizar?'Anulación autorizada':'Solicitud rechazada'});
+  x.solicitudAnulacion={...x.solicitudAnulacion,estado:autorizar?'Aprobada':'Rechazada',fechaResolucion:stamp()};
+  if(autorizar){
+    x.anulado=true;x.fechaAnulacion=stamp();
+    if(x.origenId){
+      const g=grupoEgreso(x),lst=(g==='nomina'?S.nomina:g==='comisiones'?S.comisiones:[]);
+      const doc=lst.find(y=>y.id===x.origenId);
+      if(doc){
+        const vigentes=S.egresos.filter(e=>!e.anulado&&e.origenId===x.origenId).sort((a,b)=>String(b.fecha||'').localeCompare(String(a.fecha||'')));
+        if(g==='nomina'){doc.ultimoPago=vigentes.length?vigentes[0].fecha:'—';doc.estado=vigentes.length?'Pagado':'Activo'}
+        if(g==='comisiones'){doc.fechaPago=vigentes.length?vigentes[0].fecha:'—';doc.estado=vigentes.length?'Pagada':'Pendiente'}
+      }
+    }
+  }
+  logAct((autorizar?'Anuló':'Rechazó anulación de')+' egreso · '+x.concepto+' · '+x.monto,x.sucursal);
+  save();toast(autorizar?'Movimiento anulado ✓':'Solicitud rechazada');render(currentPage);
+}
+
 function verCargosTarjeta(){
   if(!can('egreso'))return toast('Tu usuario no registra pagos');
   const pendientes=cargosPendientesTarjeta(sucName());
@@ -1768,8 +1914,8 @@ function saveAbonoB2B(i){const x=S.clientesB2B[i],ab=registrarAbono('ab',{credit
 // Nómina y comisiones: el empleado se da de alta una sola vez. Los pagos son egresos reales, no simples estados.
 function nomina(){
   const p=getReportPeriod(),suc=sucName(),personal=filterSuc(S.nomina);
-  const pagos=S.egresos.filter(x=>inReportRange(x.fecha,p)&&grupoEgreso(x)==='nomina'&&egresoMontoAsignado(x,suc)>0);
-  const pagosHistoricos=S.egresos.filter(x=>grupoEgreso(x)==='nomina'&&Number(x.monto)>0);
+  const pagos=S.egresos.filter(x=>!x.anulado&&inReportRange(x.fecha,p)&&grupoEgreso(x)==='nomina'&&egresoMontoAsignado(x,suc)>0);
+  const pagosHistoricos=S.egresos.filter(x=>!x.anulado&&grupoEgreso(x)==='nomina'&&Number(x.monto)>0);
   const total=r2(pagos.reduce((a,x)=>a+egresoAsignado(x,suc),0));
   return `${head('Nómina','Primero da de alta al empleado. Después registra cada pago real con fecha y forma de pago.',`<button class="primary" onclick="openEmpleado()">+ Dar de alta empleado</button>${pagosHistoricos.length?'<button class="secondary" onclick="verUltimoPagoNomina()">Ver último pago registrado</button>':''}`)}
   ${sucTabs()}${reportControls()}
@@ -1785,7 +1931,7 @@ function nomina(){
 }
 // Facilita localizar pagos cuando el filtro anterior correspondía a otra semana.
 function verUltimoPagoNomina(){
-  const ultimo=S.egresos.filter(x=>grupoEgreso(x)==='nomina'&&Number(x.monto)>0).sort((a,b)=>String(b.fecha||'').localeCompare(String(a.fecha||'')))[0];
+  const ultimo=S.egresos.filter(x=>!x.anulado&&grupoEgreso(x)==='nomina'&&Number(x.monto)>0).sort((a,b)=>String(b.fecha||'').localeCompare(String(a.fecha||'')))[0];
   if(!ultimo)return toast('No hay pagos de nómina registrados');
   reportMode='week';reportAnchor=ultimo.fecha;reportCustomStart='';reportCustomEnd='';
   if(!lockedSuc())currentSuc='all';
@@ -1811,7 +1957,7 @@ function saveEmpleado(){
 }
 function comisiones(){
   const p=getReportPeriod(),suc=sucName(),f=filterSuc(S.comisiones);
-  const pagadas=S.egresos.filter(x=>inReportRange(x.fecha,p)&&grupoEgreso(x)==='comisiones'&&egresoMontoAsignado(x,suc)>0);
+  const pagadas=S.egresos.filter(x=>!x.anulado&&inReportRange(x.fecha,p)&&grupoEgreso(x)==='comisiones'&&egresoMontoAsignado(x,suc)>0);
   const total=r2(pagadas.reduce((a,x)=>a+egresoAsignado(x,suc),0));
   return `${head('Comisiones','Elige un empleado dado de alta, registra la comisión y marca el pago cuando realmente se realice.',`<button class="primary" onclick="openComision()">+ Registrar comisión</button><button class="secondary" onclick="openEmpleado()">+ Alta empleado</button>`)}
   ${sucTabs()}${reportControls()}
@@ -1864,7 +2010,7 @@ function savePago(tipo,i){
   if(tipo==='comisiones'&&x.estado==='Pagada')return toast('Esta comisión ya fue pagada');
   const fecha=val('pg_fecha'),periodo=val('pg_periodo').trim(),monto=r2(num('pg_monto'));
   if(!fecha||!periodo||monto<=0)return toast('Captura fecha, período e importe');
-  const yaPagado=tipo==='nomina'&&S.egresos.some(e=>e.origenId===x.id&&e.periodo&&e.periodo.trim().toLowerCase()===periodo.toLowerCase());
+  const yaPagado=tipo==='nomina'&&S.egresos.some(e=>!e.anulado&&e.origenId===x.id&&e.periodo&&e.periodo.trim().toLowerCase()===periodo.toLowerCase());
   if(yaPagado&&!confirm('Ya existe un pago de este empleado para ese período. ¿Registrar otro pago adicional?'))return;
   if(tipo==='nomina'){x.estado='Pagado';x.ultimoPago=fecha}else{x.estado='Pagada';x.fechaPago=fecha}
   const pay=Object.assign({id:'EG-'+Date.now(),grupo:tipo,fecha,periodo,concepto:(tipo==='nomina'?'Pago nómina':'Pago comisión')+' · '+x.nombre,categoria:tipo==='nomina'?'Nómina':'Comisiones vendedores',proveedor:x.nombre,monto,sucursal:x.sucursal,origenId:x.id,empleadoId:tipo==='nomina'?x.id:(x.empleadoId||'')},leerPago('pg',x.sucursal));
@@ -1892,7 +2038,7 @@ function exportarCSV(nombre,cols,filas){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${nombre}_${todayBiz()}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Archivo descargado ✓');
 }
 function exportarCortes(){const p=getReportPeriod();exportarCSV('BT_cortes',['Fecha','Sucursal','Responsable','Efectivo','Transferencia','Estado transferencia','Tarjeta','Cheque','Credito','Mano de obra','Venta SICAR','Diferencia cuadre','Servicio incluido','Evidencia','Observacion'],filterPeriod(filterSuc(S.ventas),'fecha',p).map(x=>[x.fecha,x.sucursal,x.responsable,r2(x.efectivo),r2(x.transferencia),x.transferenciaStatus,r2(x.tarjeta),r2(x.cheque),r2(x.credito),r2(x.manoObra),r2(x.totalVentaSicar),cuadreCorte(x),servicioDelDia(x.fecha,x.sucursal),x.sicarArchivo||'SIN PDF',x.observacion||'']))}
-function exportarEgresos(){const p=getReportPeriod();exportarCSV('BT_egresos',['Fecha','Tipo de egreso','Concepto','Categoria','Proveedor','Sucursal','Forma de pago','Caja fisica','Monto','Estado de tarjeta','Periodo pagado'],filterPeriod(S.egresos,'fecha',p).map(x=>[x.fecha,grupoEgreso(x),x.concepto,x.categoria,x.proveedor,x.sucursal,x.metodo,x.impactaCajaFisica?egresoCajaSuc(x):'No',r2(x.monto),estadoCargoTarjeta(x),x.periodo||'']))}
+function exportarEgresos(){const p=getReportPeriod();exportarCSV('BT_egresos',['Fecha','Tipo de egreso','Concepto','Categoria','Proveedor','Sucursal','Forma de pago','Caja fisica','Monto','Estado de movimiento','Estado de tarjeta','Periodo pagado','Historial de cambios (detalle)'],filterPeriod(S.egresos,'fecha',p).map(x=>[x.fecha,grupoEgreso(x),x.concepto,x.categoria,x.proveedor,x.sucursal,x.metodo,x.impactaCajaFisica?egresoCajaSuc(x):'No',r2(x.monto),x.anulado?'Anulado':(x.solicitudAnulacion?.estado==='Pendiente'?'Anulación solicitada':'Vigente'),estadoCargoTarjeta(x),x.periodo||'',JSON.stringify(x.historialCambios||[])]))}
 function exportarCobranza(){const p=getReportPeriod();exportarCSV('BT_cobranza',['Fecha','Cliente','Credito','Sucursal','Forma de pago','Estado transferencia','Monto'],filterPeriod(filterSuc(S.cobranzas),'fecha',p).map(x=>[x.fecha,x.cliente,x.creditoId||'',x.sucursal,x.metodo,x.transferenciaStatus||'',r2(x.monto)]))}
 
 // ════════════════ CONTROL DEL SISTEMA (Director) ════════════════
