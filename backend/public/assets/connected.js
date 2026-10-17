@@ -24,7 +24,12 @@ const BT = {
     const digest=await crypto.subtle.digest('SHA-256',bytes);
     const fingerprint=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
     const entries=this.receipts();
-    if(!entries[fingerprint]){entries[fingerprint]={key:crypto.randomUUID(),action};this.saveReceipts(entries);}
+    if(entries[fingerprint])return {fingerprint,...entries[fingerprint]};
+    // An uncertain submission keeps its key even if the form is edited or reopened.
+    // The server can commit one payload for that key, never a second payment.
+    const pending=Object.entries(entries).find(([,entry])=>entry.action===action);
+    if(pending)return {fingerprint:pending[0],...pending[1]};
+    entries[fingerprint]={key:crypto.randomUUID(),action};this.saveReceipts(entries);
     return {fingerprint,...entries[fingerprint]};
   },
   removeReceipt(fp) {const r=this.receipts();delete r[fp];this.saveReceipts(r);},
@@ -71,6 +76,9 @@ const BT = {
       const packet=await this.request('state');this.apply(packet,false);
       this.removeReceipt(receipt.fingerprint);if(close)closeModal();if(after)after();render(roleHas(page)?page:'home');if(after)after(true);toast(message);return true;
     }catch(e){
+      if(receipt&&e.status===409){
+        try{const status=await this.request('request.status&key='+receipt.key);if(status.confirmed){committed=true;this.apply(await this.request('state'),false);this.removeReceipt(receipt.fingerprint);if(close)closeModal();render(roleHas(page)?page:'home');toast('El envío anterior ya estaba guardado. Se actualizaron sus datos; no se creó otro movimiento.');return true;}}catch{toast('No se pudo comprobar el envío anterior. Conserva la captura y reintenta con conexión.');return false;}
+      }
       if(receipt&&e.status&&e.status<500)this.removeReceipt(receipt.fingerprint);
       if(e.status===409){await this.syncConflict();}
       toast(committed?'El servidor guardó el movimiento, pero falta actualizar la pantalla. Reintenta para consultar el mismo guardado.':(e.message||'Sin conexión. No se confirmó el guardado; reintenta cuando vuelva internet.'));
