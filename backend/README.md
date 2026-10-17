@@ -1,7 +1,7 @@
 # Base PHP/MySQL del sistema existente
 
 Estado: backend para desarrollo e integración. **No instalado, no autorizado para producción.**
-La interfaz original de `index.html` no se cambia ni se conecta todavía.
+La interfaz original de `index.html` permanece intacta. `public/app.php` la conecta a la API mediante `assets/connected.js`, sin sustituir sus pantallas.
 No hay contraseñas reales, cuentas personales ni datos operativos en esta carpeta.
 
 ## Estructura
@@ -32,27 +32,28 @@ contraseña por STDIN, nunca por argumento o archivo versionado. Roles y sucursa
 reales de Daniel/Pamela requieren confirmación. `set-access.php` permite restringir
 páginas de un usuario y revoca sus sesiones existentes.
 
-## Contrato para la futura integración
+## Contrato de la integración
 1. GET `index.php?action=csrf` obtiene CSRF con cookie de sesión.
 2. POST `?action=login`, JSON `{username,password}`, `X-CSRF-Token` y Origin exacto.
    Devuelve usuario de servidor y un NUEVO token CSRF.
 3. GET `?action=state` devuelve `{state,user,branches,revision,settingsVersion}`.
 4. POST `?action=<comando>` con JSON, CSRF y `Idempotency-Key` único de 16-100
    caracteres. Reutilizar la misma clave SOLO al reintentar la misma acción/entrada.
-5. POST `?action=logout` invalida sesión. No se permite CORS.
+5. GET `?action=request.status&key=...` consulta el recibo de un envío incierto del usuario actual.
+6. POST `?action=logout` invalida sesión. No se permite CORS.
 
 Los registros incluyen `id` estable y `_version`. Una actualización envía
 `{id,version: Number(_version), ...campos}`. Un conflicto devuelve 409 y no guarda.
 No enviar el objeto S completo. No usar índices de arrays como identificadores.
-Los importes llegan como cadenas decimales desde PDO; la futura capa de adaptación
-normalizará los campos numéricos que la interfaz usa con `+=` sin perder el ID/versión.
+Los importes llegan como cadenas decimales desde PDO; la capa de adaptación
+normaliza los campos numéricos que la interfaz usa con `+=` sin perder el ID/versión.
 Fechas sin captura son null, no un dato de ejemplo. No ejecutar `loadState()`/seedData
 como recuperación de fallos de red en la versión conectada.
 
 Un error de red no debe cerrar formularios ni mostrar “guardado”. El cliente debe esperar
 el commit y manejar 401/403/409/422/503; refrescar datos sin sobrescribir un formulario abierto.
 `revision` sirve para detectar nuevos movimientos, pero el sondeo y el manejo de conflictos
-en la interfaz pertenecen a la siguiente etapa. No hay WebSocket ni sincronización UI aún.
+en la interfaz están implementados en assets/connected.js. No hay WebSocket; la sincronización es por consultas periódicas.
 
 | Comando | Campos particulares |
 |---|---|
@@ -119,7 +120,7 @@ sesiones, CSRF, revocación y dos procesos compitiendo por el mismo saldo.
 El workflow ejecuta lint, paridad y pruebas MySQL en la rama de migración.
 
 ## Límites de esta entrega
-No conecta aún los botones/formularios al backend ni importa información local.
+Los botones/formularios de las 23 pantallas se conectan en app.php. No se importa información local ni se migra información real automáticamente.
 Conservar el demo funcional no significa que sus datos ya estén sincronizados.
 La importación Excel sigue siendo solo un aviso, como en el original; no se implementa
 integración nueva con Mercado Libre ni timbrado CFDI.
@@ -127,7 +128,15 @@ Mantiene reglas actuales de redondeo y “flujo no es utilidad”. Dos comportam
 originales deben revisarse en aceptación sin cambiarlos silenciosamente: inventario
 se limita a cero al salir más de lo disponible; entrega con Crédito marca cobrado.
 
-Faltan pruebas HTTP/browser completas, carga, extensiones del hosting, seguridad del
-directorio del subdominio, integración de las 23 pantallas y respaldo/RESTAURACIÓN
+Faltan completar aceptación operativa, carga, extensiones del hosting, seguridad del
+directorio real del subdominio y respaldo/RESTAURACIÓN
 comprobada de SQL+PDF+configuración con copia fuera del hosting. Producción bloqueada
 hasta completar estos puntos y recibir autorización. No se ha tocado cPanel.
+
+## Ubicación privada para una futura instalación
+La configuración de despliegue debe definir, únicamente para el subdominio:
+`BT_BACKEND_ROOT` (carpeta privada que contiene src), `BT_UI_SOURCE` (index original
+privado) y `BT_CONFIG_FILE` (configuración privada). En desarrollo se usan las rutas
+relativas del repositorio. Esto permite colocar código, configuración y PDF fuera
+de todo public_html y copiar solo public/ a la raíz independiente del subdominio.
+No se ha creado ni cambiado ninguna de estas rutas en cPanel.

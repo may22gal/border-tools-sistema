@@ -87,6 +87,14 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Desktop and mobile connected workflows
         run: npx playwright test --max-failures=2
+      - name: Package the tested synthetic demonstration
+        run: git archive --format=zip --output=/tmp/border-tools-connected-demo.zip HEAD
+      - name: Save runnable demonstration
+        uses: actions/upload-artifact@v4
+        with:
+          name: border-tools-connected-demo
+          path: /tmp/border-tools-connected-demo.zip
+          retention-days: 14
       - name: Save visual proof and test report
         if: always()
         uses: actions/upload-artifact@v4

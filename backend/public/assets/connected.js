@@ -28,12 +28,18 @@ const BT = {
     return {fingerprint,...entries[fingerprint]};
   },
   removeReceipt(fp) {const r=this.receipts();delete r[fp];this.saveReceipts(r);},
+  stampUTC(value) {
+    if(!value)return value;
+    const iso=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(value)?value.replace(' ','T')+'Z':value;
+    const d=new Date(iso);return Number.isNaN(d.getTime())?value:d.toLocaleString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  },
   normalize(packet) {
     const numeric=new Set(['_version','efectivo','transferencia','tarjeta','cheque','credito','creditoAsignado','manoObra','totalVentaSicar','total','cantidad','precio','stock','monto','diagnosticoCosto','diagnosticoCobrado','reparacionBruta','cotizacion','cobro','sueldo','compras','saldo','actual','minimo','fondo','esperado','contado','diferencia','retiro','queda','entrada','salida']);
     const bools=new Set(['fijo','activo','autorizado','cobrado','garantia','impactaCajaFisica','pagoAplazado','anulado','read','archived']);
     for(const key of ARRAY_KEYS){packet.state[key]??=[];for(const row of packet.state[key]){
       for(const [field,value] of Object.entries(row)){if(numeric.has(field)&&!(field==='entrada'&&key==='servicio')&&value!==null&&value!=='')row[field]=Number(value);if(bools.has(field))row[field]=value===true||value===1||value==='1';}
       if(key==='servicio'){row.entrada=row.entrada||'';row.entrega=row.entrega||'';row.historial??=[];for(const item of row.cotItems||[])item.monto=Number(item.monto);}
+      if(row.ts)row.ts=this.stampUTC(row.ts);if(row.historial)for(const item of row.historial)if(item.ts)item.ts=this.stampUTC(item.ts);if(row.historialCambios)for(const item of row.historialCambios)if(item.fecha)item.fecha=this.stampUTC(item.fecha);
       if(key==='nomina')row.ultimoPago||='—';if(key==='comisiones')row.fechaPago||='—';if(key==='compras')row.entrega||='—';
     }}
     return packet;
@@ -46,7 +52,7 @@ const BT = {
     if(repaint)render(roleHas(currentPage)?currentPage:'home');
   },
   async sync(force=false) {
-    if(this.syncing||(!force&&(this.busy||!this.user||!document.getElementById('modal').classList.contains('hidden'))))return;
+    if(this.syncing||(!force&&(this.busy||!this.user||document.getElementById('sidebar').classList.contains('open')||!document.getElementById('modal').classList.contains('hidden'))))return;
     this.syncing=true;try{this.apply(await this.request('state'));}finally{this.syncing=false;}
   },
   capture() {

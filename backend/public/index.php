@@ -2,7 +2,7 @@
 declare(strict_types=1);
 // Future document root: ONLY this public directory and the existing UI assets.
 // Place backend/src, migrations, configuration and storage outside public_html.
-require_once dirname(__DIR__).'/src/bootstrap.php';
+require_once (getenv('BT_BACKEND_ROOT')?:dirname(__DIR__)).'/src/bootstrap.php';
 use BT\{App,Auth,DB,Problem};
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');header('Referrer-Policy: same-origin');
 header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");

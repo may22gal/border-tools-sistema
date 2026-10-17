@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require_once dirname(__DIR__).'/src/bootstrap.php';
+require_once (getenv('BT_BACKEND_ROOT')?:dirname(__DIR__)).'/src/bootstrap.php';
 use BT\{DB,Auth,Problem};
 header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');
 $target=null;

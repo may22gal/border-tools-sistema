@@ -7,7 +7,7 @@ async function login(page,role='direccion'){
   const c=credentials()[role];await page.locator('#username').fill(c.username);await page.locator('#login input[type=password]').fill(c.password);await page.locator('#btnEntrar').click();await expect(page.locator('#app')).not.toHaveClass(/hidden/);
 }
 async function navigate(page,name){
-  if(await page.locator('.mobile-btn').isVisible())await page.locator('.mobile-btn').click();
+  if(await page.locator('.mobile-btn').isVisible()){if(!await page.locator('#sidebar').evaluate(e=>e.classList.contains('open')))await page.locator('.mobile-btn').click();await expect(page.locator('#sidebar')).toHaveClass(/open/);}
   await page.locator('#nav button[data-page="'+name+'"]').click();await expect(page.locator('#view')).not.toBeEmpty();
 }
 async function submit(page,name='Guardar'){
@@ -125,4 +125,27 @@ test('settings controls write only on server confirmation and restore original f
 test('private files and demo configuration are not web-accessible',async({page})=>{
  for(const path of ['/backend/config.php','/../src/Core.php','/demo/.private/credentials.json','/.htaccess','/src/entities.json']){const response=await page.request.get(path);expect([400,403,404]).toContain(response.status());}
  await login(page,'facturacion');const result=await page.request.get('/evidence.php?id=unavailable');expect(result.status()).toBe(403);
+});
+test.describe('recorded synthetic demonstration',()=>{
+ test.use({video:'on'});
+ test('walk through all connected screens',async({page})=>{
+   await login(page);for(const name of pages){await navigate(page,name);await expect(page.locator('#view h2')).toBeVisible();await page.waitForTimeout(250);}
+ });
+});
+
+test('deferred card charge, partial settlement and category administration',async({page},info)=>{
+ await login(page);await navigate(page,'gastos');const name='Tarjeta UI '+info.project.name+' '+Date.now();
+ await page.getByRole('button',{name:'+ Registrar gasto',exact:true}).click();await page.locator('#e_concepto').fill(name);await page.locator('#e_monto').fill('90.00');await page.locator('#e_metodo').selectOption('Tarjeta');await page.locator('#e_credito').selectOption('1');await submit(page,'Guardar gasto');
+ await page.locator('tr').filter({hasText:name}).getByRole('button',{name:'Liquidar',exact:true}).click();await page.locator('#lt_monto').fill('30.00');await page.locator('#lt_referencia').fill('Referencia ficticia');await submit(page,'Confirmar pago y actualizar saldo');
+ const balance=await page.evaluate(n=>{const c=S.egresos.find(e=>e.concepto===n);return {pending:saldoCargoTarjeta(c),payments:S.egresos.filter(e=>e.origenCargoId===c.id).length};},name);expect(balance).toEqual({pending:60,payments:1});
+ await page.getByRole('button',{name:'Administrar tipos de gasto',exact:true}).click();await page.locator('#tg_nombre').fill(name);await page.getByRole('button',{name:'+ Guardar tipo',exact:true}).click();await page.waitForFunction(()=>!BT.busy);await expect(page.locator('#modal .rline').filter({hasText:name})).toBeVisible();
+ await page.locator('#modal .rline').filter({hasText:name}).getByRole('button',{name:'Desactivar'}).click();await page.waitForFunction(()=>!BT.busy);expect(await page.evaluate(n=>S.categoriasGastos.find(c=>c.nombre===n).activo,name)).toBe(false);
+});
+test('manual credit, pending transfer approval, balances and received purchase',async({page},info)=>{
+ await login(page);const name='Manual UI '+info.project.name+' '+Date.now();await navigate(page,'credito');await page.getByRole('button',{name:'+ Crédito manual',exact:true}).click();await page.locator('#cr_cliente').fill(name);await page.locator('#cr_monto').fill('100.00');await submit(page,'Guardar crédito');
+ await page.locator('tr').filter({hasText:name}).getByRole('button',{name:'Registrar abono'}).click();await page.locator('#cc_metodo').selectOption('Transferencia');await page.locator('#cc_status').selectOption('Pendiente');await page.locator('#cc_monto').fill('25.00');await submit(page,'Registrar abono');
+ await navigate(page,'finanzas');await page.locator('#cardTransfer tr').filter({hasText:name}).getByRole('button',{name:'✓ Confirmar',exact:true}).click();await page.waitForFunction(()=>!BT.busy);expect(await page.evaluate(n=>S.cobranzas.find(c=>c.cliente===n).transferenciaStatus,name)).toBe('Aprobada');
+ await page.getByRole('button',{name:'Saldos disponibles',exact:true}).click();await page.locator('#sd_cuenta').fill(name);await page.locator('#sd_saldo').fill('200.25');await submit(page,'Guardar saldo');
+ await page.getByRole('button',{name:'Saldos disponibles',exact:true}).click();await page.locator('#modal .rline').filter({hasText:name}).getByRole('button',{name:'Quitar'}).click();await page.waitForFunction(()=>!BT.busy);expect(await page.evaluate(n=>S.saldos.some(c=>c.cuenta===n),name)).toBe(false);await page.locator('#modal').getByRole('button',{name:'✕',exact:true}).click();
+ await navigate(page,'compras');await page.getByRole('button',{name:'+ Orden de compra',exact:true}).click();await page.locator('#c_folio').fill(name);await page.locator('#c_prov').fill('Proveedor ficticio');await page.locator('#c_monto').fill('80.00');await submit(page);await page.locator('tr').filter({hasText:name}).getByRole('button',{name:'Marcar recibida'}).click();await page.waitForFunction(()=>!BT.busy);await expect(page.locator('tr').filter({hasText:name})).toContainText('Recibida');
 });
