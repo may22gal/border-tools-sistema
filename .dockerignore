@@ -1,0 +1,10 @@
+.git
+node_modules
+test-results
+playwright-report
+demo/.private
+backend/config.php
+backend/storage
+backend/tests/generated
+.env
+*.log

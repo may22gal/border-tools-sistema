@@ -127,9 +127,11 @@ test('private files and demo configuration are not web-accessible',async({page})
  await login(page,'facturacion');const result=await page.request.get('/evidence.php?id=unavailable');expect(result.status()).toBe(403);
 });
 test.describe('recorded synthetic demonstration',()=>{
- test.use({video:'on'});
- test('walk through all connected screens',async({page})=>{
+ test('walk through all connected screens',async({browser},info)=>{
+   const context=await browser.newContext({baseURL:'http://localhost:8080',viewport:info.project.use.viewport,isMobile:info.project.use.isMobile,hasTouch:info.project.use.hasTouch,recordVideo:{dir:info.outputPath('video')}});const page=await context.newPage();page.on('dialog',d=>d.accept());try{
    await login(page);for(const name of pages){await navigate(page,name);await expect(page.locator('#view h2')).toBeVisible();await page.waitForTimeout(250);}
+   await navigate(page,'gastos');await page.getByRole('button',{name:'+ Registrar gasto',exact:true}).click();const concept='Demostración grabada '+Date.now();await page.locator('#e_concepto').fill(concept);await page.locator('#e_monto').fill('42.50');await submit(page,'Guardar gasto');await page.reload();await expect(page.locator('#app')).not.toHaveClass(/hidden/);expect(await page.evaluate(t=>S.egresos.filter(e=>e.concepto===t).length,concept)).toBe(1);await navigate(page,'finanzas');
+   }finally{await context.close();}
  });
 });
 

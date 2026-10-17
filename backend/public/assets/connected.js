@@ -53,7 +53,7 @@ const BT = {
   },
   async sync(force=false) {
     if(this.syncing||(!force&&(this.busy||!this.user||document.getElementById('sidebar').classList.contains('open')||!document.getElementById('modal').classList.contains('hidden'))))return;
-    this.syncing=true;try{this.apply(await this.request('state'));}finally{this.syncing=false;}
+    this.syncing=true;try{const packet=await this.request('state');if(force||(!this.busy&&document.getElementById('modal').classList.contains('hidden')&&!document.getElementById('sidebar').classList.contains('open')))this.apply(packet);}finally{this.syncing=false;}
   },
   capture() {
     this.records.clear();for(const key of ARRAY_KEYS)for(let i=0;i<(S[key]||[]).length;i++)this.records.set(key+':'+i,structuredClone(S[key][i]));
