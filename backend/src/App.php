@@ -24,7 +24,7 @@ final class App {
         requireThat(isset($d['id'],$d['version'])&&is_int($d['version']),'ID and integer version required');$x=$this->r->get($t,(string)$d['id'],true);requireThat((int)$x['_version']===$d['version'],'Record changed',409);return $x;
     }
     private function pick(array $d,array $keys): array {return array_intersect_key($d,array_flip($keys));}
-    private function required(array $d,array $keys): void {foreach($keys as $k)requireThat(isset($d[$k])&&$d[$k]!==''&&$d[$k]!==null,'Required '.$k);}
+    private function required(array $d,array $keys): void {foreach($keys as $k)requireThat(isset($d[$k])&&$d[$k]!==''&&$d[$k]!==null&&(!is_string($d[$k])||trim($d[$k])!==''),'Required '.$k);}
     private function payment(array $d): array {
         $m=$d['metodo']??'';requireThat(in_array($m,Finance::METHODS,true),'Invalid payment method');
         $cash=$m==='Efectivo'&&!empty($d['impactaCajaFisica']);$cs=$cash?($d['cajaSucursal']??$d['sucursal']??''):'';
@@ -215,7 +215,7 @@ final class App {
     private function serviceTransition(array $d): array {
         $this->p->demand('servicio');$x=$this->old('servicio',$d);$op=$d['operation']??'';$v=[];$text='';$state=$x['estado'];
         switch($op){
-            case 'diagnose':requireThat($state==='Recibida','Invalid service transition',409);$v=$this->pick($d,['diagnostico','notas']);$v['garantia']=(bool)($d['garantia']??$x['garantia']);$v['diagnosticoCosto']=$v['garantia']?'0.00':Money::decimal(Money::cents($d['diagnosticoCosto']??$x['diagnosticoCosto']));requireThat(Money::cents($v['diagnosticoCosto'])>=0,'Invalid diagnostic cost');$v['responsableDiagnostico']=$this->p->user['display_name'];$v['estado']='Diagnóstico';if(!empty($d['diagnosticoCobrado']))$v+=$this->diagnosticPayment($d,array_replace($x,$v));$text='Diagnóstico completado';break;
+            case 'diagnose':requireThat($state==='Recibida','Invalid service transition',409);$v=$this->pick($d,['diagnostico','notas']);$v['garantia']=(bool)($d['garantia']??$x['garantia']);$v['diagnosticoCosto']=$v['garantia']?'0.00':Money::decimal(Money::cents($d['diagnosticoCosto']??$x['diagnosticoCosto']));requireThat(Money::cents($v['diagnosticoCosto'])>=0,'Invalid diagnostic cost');$v['responsableDiagnostico']=$d['responsableDiagnostico']??$this->p->user['display_name'];$v['estado']='Diagnóstico';if(!empty($d['diagnosticoCobrado']))$v+=$this->diagnosticPayment($d,array_replace($x,$v));$text='Diagnóstico completado';break;
             case 'quote':
             case 'editQuote':
                 requireThat($op==='quote'?$state==='Diagnóstico':in_array($state,['Cotizada','Autorizada'],true),'Invalid quotation transition',409);
@@ -243,7 +243,7 @@ final class App {
     }
     private function inventory(array $d): array {
         $this->p->demand('inventario');$this->required($d,['fecha','tipo','producto','sucursal','cantidad']);requireThat(in_array($d['tipo'],['Entrada','Salida','Salida (Refacción)'],true)&&is_numeric($d['cantidad'])&&(float)$d['cantidad']>0,'Invalid movement');
-        $v=$this->pick($d,['fecha','tipo','producto','sku','sucursal','cantidad']);$v['responsable']=$this->p->user['display_name'];$n=$this->add('inventario',$v,'inventory.move');
+        $v=$this->pick($d,['fecha','tipo','producto','sku','sucursal','cantidad']);$v['responsable']=$d['responsable']??$this->p->user['display_name'];$n=$this->add('inventario',$v,'inventory.move');
         $q=$this->db->prepare('SELECT id FROM stockMin WHERE sku=? AND sucursal=?');$q->execute([$d['sku']??'',$d['sucursal']]);if($id=$q->fetchColumn()){$x=$this->r->get('stockMin',$id,true);$value=max(0,(float)$x['actual']+($d['tipo']==='Entrada'?1:-1)*(float)$d['cantidad']);$this->edit('stockMin',$x,['actual'=>number_format($value,4,'.','')],(int)$x['_version'],'inventory.stock');}return $n;
     }
     private function removeBalance(array $d): array {

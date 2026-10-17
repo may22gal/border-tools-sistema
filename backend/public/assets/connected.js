@@ -180,7 +180,7 @@ toggleModule=(key,on)=>BTSettings({moduleFlags:{[key]:on}});
 // Remaining operational modules use their existing forms unchanged.
 saveFact=()=>BT.mutate('catalog.create',{entity:'facturacion',...fields({folio:'f_folio',cliente:'f_cliente',rfc:'f_rfc',fecha:'f_fecha',total:'f_total',sucursal:'f_suc',estado:'f_estado'})},{page:'facturacion'});
 saveStockMin=function(){const d=fields({producto:'sm_prod',sku:'sm_sku',actual:'sm_actual',minimo:'sm_min',sucursal:'sm_suc'}),x=S.stockMin.find(x=>x.sku===d.sku&&x.sucursal===d.sucursal);return BT.mutate('stock.save',{...d,...(x?BT.identity(x):{})},{page:'inventario'});};
-saveMov=()=>BT.mutate('inventory.move',fields({fecha:'i_fecha',tipo:'i_tipo',producto:'i_prod',sku:'i_sku',cantidad:'i_cant',sucursal:'i_suc'}),{page:'inventario'});
+saveMov=()=>BT.mutate('inventory.move',fields({fecha:'i_fecha',tipo:'i_tipo',producto:'i_prod',sku:'i_sku',cantidad:'i_cant',sucursal:'i_suc',responsable:'i_resp'}),{page:'inventario'});
 saveML=()=>BT.mutate('catalog.create',{entity:'ml',...fields({producto:'m_prod',precio:'m_precio',mercado:'m_mercado',stock:'m_stock',sucursal:'m_suc',estado:'m_estado'})},{page:'ml'});
 saveOpo=()=>BT.mutate('catalog.create',{entity:'oportunidades',...fields({tipo:'op_tipo',nombre:'op_nom',contacto:'op_cont',monto:'op_monto',sucursal:'op_suc',estado:'op_est'})},{page:'oportunidades'});
 saveCompra=()=>BT.mutate('catalog.create',{entity:'compras',...fields({folio:'c_folio',proveedor:'c_prov',fecha:'c_fecha',monto:'c_monto',sucursal:'c_suc'}),entrega:val('c_entrega')||null},{page:'compras'});
@@ -189,7 +189,7 @@ saveCliente=()=>BT.mutate('catalog.create',{entity:'clientesB2B',...fields({nomb
 saveOrden=()=>BT.mutate('service.create',{...fields({cliente:'o_cliente',tel:'o_tel',herramienta:'o_herr',modelo:'o_modelo',serie:'o_serie',sucursal:'o_suc',falla:'o_falla',entrada:'o_fecha',diagnosticoCosto:'o_diag'}),garantia:val('o_gar')==='1'},{page:'servicio'});
 const service=(i,operation,d={})=>BT.mutate('service.transition',{...ident('servicio',i),operation,...d},{page:'servicio'});
 const diagnosticFields=prefix=>({diagnosticoCobrado:val(prefix+'_monto'),diagnosticoFechaCobro:val(prefix+'_fecha'),diagnosticoMetodo:val(prefix+'_metodo'),diagnosticoSicar:val(prefix+'_sicar')});
-guardarDiag=function(i){const d={...fields({diagnostico:'diag_txt',diagnosticoCosto:'diag_costo',notas:'diag_notas'}),garantia:val('diag_gar')==='1'};if(val('diag_paid')==='1'&&!d.garantia)Object.assign(d,{diagnosticoCobrado:val('diag_costo'),diagnosticoFechaCobro:val('diag_fecha'),diagnosticoMetodo:val('diag_metodo'),diagnosticoSicar:val('diag_sicar')});return service(i,'diagnose',d);};
+guardarDiag=function(i){const d={...fields({diagnostico:'diag_txt',diagnosticoCosto:'diag_costo',notas:'diag_notas',responsableDiagnostico:'diag_resp'}),garantia:val('diag_gar')==='1'};if(val('diag_paid')==='1'&&!d.garantia)Object.assign(d,{diagnosticoCobrado:val('diag_costo'),diagnosticoFechaCobro:val('diag_fecha'),diagnosticoMetodo:val('diag_metodo'),diagnosticoSicar:val('diag_sicar')});return service(i,'diagnose',d);};
 guardarCot=i=>service(i,'quote',{items:[{descripcion:'Reparación',monto:val('cot_monto')}],via:val('cot_via')});
 guardarEdicionCot=i=>service(i,'editQuote',{items:leerItemsCotEdit().map(it=>({...it,monto:it.monto.toFixed(2)}))});
 const btAuth=guardarAuth;

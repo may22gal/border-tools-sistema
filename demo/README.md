@@ -16,6 +16,12 @@ una contraseña temporal generada al crear el entorno. Las cuentas de prueba son
 `demo_direccion`, `demo_finanzas`, `demo_ventas_g`, `demo_ventas_t`,
 `demo_facturacion`, `demo_ecommerce`, `demo_servicio`. Comparten la contraseña de
 prueba generada para ese entorno. Los nombres no corresponden a personas reales.
+Si se reinicia un entorno existente, la contraseña se conserva. Se puede consultar
+desde la raíz del repositorio con:
+
+```
+docker compose --env-file demo/.private/compose.env -f demo/compose.yml exec app php -r '$c=json_decode(file_get_contents("/private-demo/credentials.json"),true); echo $c["direccion"]["username"].PHP_EOL.$c["direccion"]["password"].PHP_EOL;'
+```
 
 Los datos ficticios cubren ambas sucursales, cortes SICAR, créditos, cobranza,
 proveedores, gastos, nómina, comisiones, caja, saldos, servicio, facturación,
@@ -30,7 +36,8 @@ La contraseña SQL se genera en demo/.private/compose.env, ignorado por Git.
 Los PDF y configuración residen en un volumen privado, fuera del directorio público.
 MySQL no publica un puerto al exterior; la app solo publica 127.0.0.1:8080.
 Las capturas persisten entre reinicios del entorno mediante los volúmenes Docker.
-`docker compose stop` detiene la demo sin borrar sus volúmenes. No utilizar `down -v`
+`docker compose --env-file demo/.private/compose.env -f demo/compose.yml stop`
+detiene la demo sin borrar sus volúmenes. No utilizar `down -v`
 si se quiere conservar las pruebas. El seed se niega a sobrescribir una base con usuarios.
 
 ## Entorno de desarrollo opcional
