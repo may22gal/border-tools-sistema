@@ -140,3 +140,8 @@ privado) y `BT_CONFIG_FILE` (configuración privada). En desarrollo se usan las 
 relativas del repositorio. Esto permite colocar código, configuración y PDF fuera
 de todo public_html y copiar solo public/ a la raíz independiente del subdominio.
 No se ha creado ni cambiado ninguna de estas rutas en cPanel.
+
+## Integración de frontend verificada
+Ver [FRONTEND_INTEGRATION.md](FRONTEND_INTEGRATION.md) para las 23 pantallas y
+[INTEGRATION_RESULTS.md](INTEGRATION_RESULTS.md) para la ejecución final aprobada,
+la evidencia visual y la demostración ficticia.
