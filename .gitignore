@@ -1,0 +1,5 @@
+/backend/config.php
+/backend/storage/
+/backend/tests/generated/
+*.log
+.env

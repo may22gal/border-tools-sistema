@@ -1,0 +1,37 @@
+name: PHP MySQL migration checks
+on:
+  push:
+    branches: [migration/php-mysql]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: bt_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+    env:
+      BT_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=bt_test;charset=utf8mb4
+      BT_TEST_USER: root
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP and PDO MySQL
+        run: php -v && php -r 'exit(extension_loaded("pdo_mysql") ? 0 : 1);'
+      - name: PHP syntax
+        run: find backend -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Original JavaScript baseline
+        run: node backend/tests/reference.mjs
+      - name: Financial parity and policy tests
+        run: php backend/tests/finance.php
+      - name: Real MySQL integration and concurrency
+        run: php backend/tests/integration.php

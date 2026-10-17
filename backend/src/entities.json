@@ -1,0 +1,198 @@
+{
+  "categoriasGastos": {
+    "nombre": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "fijo": "BOOLEAN NOT NULL DEFAULT FALSE",
+    "activo": "BOOLEAN NOT NULL DEFAULT TRUE"
+  },
+  "ventas": {
+    "fecha": "DATE NULL",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "responsable": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "efectivo": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "transferencia": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "transferenciaStatus": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "tarjeta": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "cheque": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "credito": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "creditoAsignado": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "manoObra": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "totalVentaSicar": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "observacion": "TEXT NULL",
+    "sicarArchivo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "evidenciaId": "CHAR(36) NULL"
+  },
+  "facturacion": {
+    "folio": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "cliente": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "rfc": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "fecha": "DATE NULL",
+    "total": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "estado": "VARCHAR(255) NOT NULL DEFAULT ''"
+  },
+  "inventario": {
+    "tipo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "producto": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "sku": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "cantidad": "DECIMAL(18,4) NOT NULL DEFAULT 0",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "responsable": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "fecha": "DATE NULL"
+  },
+  "ml": {
+    "producto": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "precio": "DECIMAL(18,2) NULL",
+    "mercado": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "stock": "DECIMAL(18,4) NOT NULL DEFAULT 0",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "estado": "VARCHAR(255) NOT NULL DEFAULT ''"
+  },
+  "oportunidades": {
+    "tipo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "nombre": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "contacto": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "monto": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "estado": "VARCHAR(255) NOT NULL DEFAULT ''"
+  },
+  "servicio": {
+    "folio": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "cliente": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "tel": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "herramienta": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "modelo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "serie": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "falla": "TEXT NULL",
+    "entrada": "DATE NULL",
+    "estado": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "diagnostico": "TEXT NULL",
+    "diagnosticoCosto": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "diagnosticoCobrado": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "diagnosticoFechaCobro": "DATE NULL",
+    "diagnosticoMetodo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "diagnosticoSicar": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "responsableDiagnostico": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "reparacionBruta": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "cotizacion": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "autorizado": "BOOLEAN NOT NULL DEFAULT FALSE",
+    "entrega": "DATE NULL",
+    "cobro": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "cobrado": "BOOLEAN NOT NULL DEFAULT FALSE",
+    "garantia": "BOOLEAN NOT NULL DEFAULT FALSE",
+    "notas": "TEXT NULL",
+    "formaPago": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "reparacionSicar": "VARCHAR(255) NOT NULL DEFAULT ''"
+  },
+  "egresos": {
+    "fecha": "DATE NULL",
+    "grupo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "concepto": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "categoria": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "proveedor": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "monto": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "metodo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "impactaCajaFisica": "BOOLEAN NOT NULL DEFAULT FALSE",
+    "cajaSucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "pagoAplazado": "BOOLEAN NOT NULL DEFAULT FALSE",
+    "anulado": "BOOLEAN NOT NULL DEFAULT FALSE",
+    "fechaAnulacion": "DATETIME(6) NULL",
+    "origenCargoId": "VARCHAR(64) NULL",
+    "origenId": "VARCHAR(64) NULL",
+    "empleadoId": "VARCHAR(64) NULL",
+    "periodo": "VARCHAR(255) NOT NULL DEFAULT ''"
+  },
+  "nomina": {
+    "nombre": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "rol": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "sueldo": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "ultimoPago": "DATE NULL",
+    "estado": "VARCHAR(255) NOT NULL DEFAULT ''"
+  },
+  "comisiones": {
+    "nombre": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "tipo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "periodo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "monto": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "estado": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "fechaPago": "DATE NULL",
+    "empleadoId": "VARCHAR(64) NULL"
+  },
+  "compras": {
+    "folio": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "proveedor": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "fecha": "DATE NULL",
+    "monto": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "estado": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "entrega": "DATE NULL"
+  },
+  "clientesB2B": {
+    "nombre": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "contacto": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "compras": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "credito": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "saldo": "DECIMAL(18,2) NOT NULL DEFAULT 0"
+  },
+  "creditos": {
+    "cliente": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "clienteId": "VARCHAR(64) NULL",
+    "fecha": "DATE NULL",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "monto": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "saldo": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "estado": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "origenCorte": "VARCHAR(64) NULL"
+  },
+  "cobranzas": {
+    "fecha": "DATE NULL",
+    "creditoId": "VARCHAR(64) NULL",
+    "clienteId": "VARCHAR(64) NULL",
+    "cliente": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "metodo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "transferenciaStatus": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "monto": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "metodoOriginal": "VARCHAR(255) NOT NULL DEFAULT ''"
+  },
+  "stockMin": {
+    "producto": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "sku": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "actual": "DECIMAL(18,4) NOT NULL DEFAULT 0",
+    "minimo": "DECIMAL(18,4) NOT NULL DEFAULT 0",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''"
+  },
+  "cortesCaja": {
+    "fecha": "DATE NULL",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "fondo": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "esperado": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "contado": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "diferencia": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "retiro": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "queda": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "responsable": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "cajaId": "VARCHAR(255) NOT NULL DEFAULT ''"
+  },
+  "cajaMovimientos": {
+    "fecha": "DATE NULL",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "tipo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "metodo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "concepto": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "entrada": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "salida": "DECIMAL(18,2) NOT NULL DEFAULT 0"
+  },
+  "saldos": {
+    "archived": "BOOLEAN NOT NULL DEFAULT FALSE",
+    "cuenta": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "tipo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "saldo": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "fecha": "DATE NULL"
+  }
+}
