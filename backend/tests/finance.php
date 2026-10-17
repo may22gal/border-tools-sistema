@@ -13,4 +13,6 @@ check(Money::cents('0.01')===1,'exact cent');check(Money::cents('-1.02')===-102,
 $p=new Policy(['role'=>'ventas_g'],['Granjero']);check($p->page('ventas'),'sales page');check(!$p->page('finanzas'),'finance denied');rejects(fn()=>$p->branch('Troncoso'),403);rejects(fn()=>$p->branch('Ambas'),403);rejects(fn()=>$p->action('approve'),403);
 $p=new Policy(['role'=>'finanzas'],['Granjero','Troncoso'],['nomina'=>false],['gastos'=>false]);check(!$p->page('nomina'),'user override denied');check(!$p->page('gastos'),'module denied');check($p->page('finanzas'),'finance allowed');
 $p=new Policy(['role'=>'direccion'],['Granjero','Troncoso'],[],['gastos'=>false]);check($p->page('gastos'),'director sees disabled module');
+$reference=json_decode(file_get_contents(__DIR__.'/generated/reference.json'),true);
+foreach($reference['perms'] as $role=>$pages)check(Policy::PAGES[$role]===$pages,'original permission matrix '.$role);
 echo "PASS $count financial parity and policy assertions\n";

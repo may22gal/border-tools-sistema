@@ -28,24 +28,24 @@ entities={
 'saldos':fields(archived=B,cuenta=T,tipo=T,sucursal=T,saldo=M,fecha=D),
 }
 sql=['-- MySQL 8.0+, InnoDB; apply only to a NEW dedicated database. No DROP or TRUNCATE.',
-'''CREATE TABLE schema_migrations (version VARCHAR(100) PRIMARY KEY, applied_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)) ENGINE=InnoDB;
-CREATE TABLE branches (name VARCHAR(255) PRIMARY KEY) ENGINE=InnoDB;
+'''CREATE TABLE schema_migrations (version VARCHAR(100) PRIMARY KEY, applied_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE branches (name VARCHAR(255) PRIMARY KEY) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO branches VALUES ('Granjero'), ('Troncoso');
-CREATE TABLE roles (name VARCHAR(32) PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE roles (name VARCHAR(32) PRIMARY KEY) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO roles VALUES ('direccion'),('ventas_g'),('ventas_t'),('finanzas'),('facturacion'),('ecommerce'),('servicio');
-CREATE TABLE users (id CHAR(36) PRIMARY KEY, username VARCHAR(100) NOT NULL UNIQUE, display_name VARCHAR(160) NOT NULL, password_hash VARCHAR(255) NOT NULL, role VARCHAR(32) NOT NULL, active BOOLEAN NOT NULL DEFAULT TRUE, auth_version INT NOT NULL DEFAULT 1, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), FOREIGN KEY (role) REFERENCES roles(name)) ENGINE=InnoDB;
-CREATE TABLE user_branches (user_id CHAR(36) NOT NULL, branch_name VARCHAR(255) NOT NULL, PRIMARY KEY(user_id,branch_name), FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(branch_name) REFERENCES branches(name)) ENGINE=InnoDB;
-CREATE TABLE user_permissions (user_id CHAR(36) NOT NULL, permission VARCHAR(100) NOT NULL, allowed BOOLEAN NOT NULL, PRIMARY KEY(user_id,permission), FOREIGN KEY(user_id) REFERENCES users(id)) ENGINE=InnoDB;
-CREATE TABLE app_settings (id INT PRIMARY KEY, config JSON NOT NULL, version BIGINT NOT NULL DEFAULT 1) ENGINE=InnoDB;
+CREATE TABLE users (id CHAR(36) PRIMARY KEY, username VARCHAR(100) NOT NULL UNIQUE, display_name VARCHAR(160) NOT NULL, password_hash VARCHAR(255) NOT NULL, role VARCHAR(32) NOT NULL, active BOOLEAN NOT NULL DEFAULT TRUE, auth_version INT NOT NULL DEFAULT 1, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), FOREIGN KEY (role) REFERENCES roles(name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE user_branches (user_id CHAR(36) NOT NULL, branch_name VARCHAR(255) NOT NULL, PRIMARY KEY(user_id,branch_name), FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(branch_name) REFERENCES branches(name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE user_permissions (user_id CHAR(36) NOT NULL, permission VARCHAR(100) NOT NULL, allowed BOOLEAN NOT NULL, PRIMARY KEY(user_id,permission), FOREIGN KEY(user_id) REFERENCES users(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE app_settings (id INT PRIMARY KEY, config JSON NOT NULL, version BIGINT NOT NULL DEFAULT 1) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO app_settings VALUES (1, '{"diagnosticoEstandar":250,"requireTransferApproval":false,"moduleFlags":{}}', 1);
-CREATE TABLE write_mutex (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE write_mutex (id INT PRIMARY KEY) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO write_mutex VALUES (1);
-CREATE TABLE sequences (name VARCHAR(40) PRIMARY KEY, next_value BIGINT NOT NULL) ENGINE=InnoDB;
+CREATE TABLE sequences (name VARCHAR(40) PRIMARY KEY, next_value BIGINT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO sequences VALUES ('service',1027);
-CREATE TABLE login_attempts (bucket CHAR(64) PRIMARY KEY, failures INT NOT NULL DEFAULT 0, blocked_until DATETIME(6) NULL, updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)) ENGINE=InnoDB;
-CREATE TABLE requests (user_id CHAR(36) NOT NULL, request_key VARCHAR(100) NOT NULL, fingerprint CHAR(64) NOT NULL, response JSON NOT NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), PRIMARY KEY(user_id,request_key), FOREIGN KEY(user_id) REFERENCES users(id)) ENGINE=InnoDB;
-CREATE TABLE change_log (seq BIGINT AUTO_INCREMENT PRIMARY KEY, user_id CHAR(36) NOT NULL, action VARCHAR(100) NOT NULL, entity VARCHAR(100) NOT NULL, record_id VARCHAR(64) NULL, branch_name VARCHAR(255) NULL, before_data JSON NULL, after_data JSON NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), FOREIGN KEY(user_id) REFERENCES users(id), INDEX(branch_name,seq)) ENGINE=InnoDB;
-CREATE TABLE evidence (id CHAR(36) PRIMARY KEY, storage_name VARCHAR(100) NOT NULL UNIQUE, original_name VARCHAR(255) NOT NULL, sha256 CHAR(64) NOT NULL, size_bytes BIGINT NOT NULL, branch_name VARCHAR(255) NOT NULL, uploaded_by CHAR(36) NOT NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), FOREIGN KEY(uploaded_by) REFERENCES users(id), FOREIGN KEY(branch_name) REFERENCES branches(name)) ENGINE=InnoDB;''']
+CREATE TABLE login_attempts (bucket CHAR(64) PRIMARY KEY, failures INT NOT NULL DEFAULT 0, blocked_until DATETIME(6) NULL, updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE requests (user_id CHAR(36) NOT NULL, request_key VARCHAR(100) NOT NULL, fingerprint CHAR(64) NOT NULL, response JSON NOT NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), PRIMARY KEY(user_id,request_key), FOREIGN KEY(user_id) REFERENCES users(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE change_log (seq BIGINT AUTO_INCREMENT PRIMARY KEY, user_id CHAR(36) NOT NULL, action VARCHAR(100) NOT NULL, entity VARCHAR(100) NOT NULL, record_id VARCHAR(64) NULL, branch_name VARCHAR(255) NULL, before_data JSON NULL, after_data JSON NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), FOREIGN KEY(user_id) REFERENCES users(id), INDEX(branch_name,seq)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE evidence (id CHAR(36) PRIMARY KEY, storage_name VARCHAR(100) NOT NULL UNIQUE, original_name VARCHAR(255) NOT NULL, sha256 CHAR(64) NOT NULL, size_bytes BIGINT NOT NULL, branch_name VARCHAR(255) NOT NULL, uploaded_by CHAR(36) NOT NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), FOREIGN KEY(uploaded_by) REFERENCES users(id), FOREIGN KEY(branch_name) REFERENCES branches(name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;''']
 uniques={'ventas':['fecha,sucursal'],'cortesCaja':['fecha,sucursal'],'stockMin':['sku,sucursal'],'categoriasGastos':['nombre'],'servicio':['folio'],'nomina':['nombre,sucursal'],'saldos':['cuenta']}
 for name,cols in entities.items():
     defs=['`id` VARCHAR(64) PRIMARY KEY','`_version` BIGINT NOT NULL DEFAULT 1','`_createdAt` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)','`_updatedAt` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)']
@@ -53,7 +53,7 @@ for name,cols in entities.items():
     defs += ['UNIQUE ('+','.join('`'+x+'`' for x in u.split(','))+')' for u in uniques.get(name,[])]
     if 'sucursal' in cols: defs += ['INDEX (`sucursal`)']
     if 'fecha' in cols: defs += ['INDEX (`fecha`)']
-    sql += [f'CREATE TABLE `{name}` (\n  '+',\n  '.join(defs)+'\n) ENGINE=InnoDB;']
+    sql += [f'CREATE TABLE `{name}` (\n  '+',\n  '.join(defs)+'\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;']
 sql += ['''ALTER TABLE ventas ADD FOREIGN KEY(evidenciaId) REFERENCES evidence(id);
 ALTER TABLE creditos ADD FOREIGN KEY(origenCorte) REFERENCES ventas(id), ADD FOREIGN KEY(clienteId) REFERENCES clientesB2B(id);
 ALTER TABLE cobranzas ADD FOREIGN KEY(creditoId) REFERENCES creditos(id), ADD FOREIGN KEY(clienteId) REFERENCES clientesB2B(id), ADD CHECK(monto > 0);
@@ -61,12 +61,20 @@ ALTER TABLE comisiones ADD FOREIGN KEY(empleadoId) REFERENCES nomina(id);
 ALTER TABLE egresos ADD FOREIGN KEY(origenCargoId) REFERENCES egresos(id), ADD FOREIGN KEY(empleadoId) REFERENCES nomina(id), ADD CHECK(monto > 0);
 ALTER TABLE creditos ADD CHECK(saldo >= 0 AND saldo <= monto);
 ALTER TABLE ventas ADD CHECK(creditoAsignado >= 0 AND creditoAsignado <= credito), ADD CHECK(manoObra >= 0 AND manoObra <= totalVentaSicar);
-CREATE TABLE payroll_payments (expense_id VARCHAR(64) PRIMARY KEY, employee_id VARCHAR(64) NOT NULL, commission_id VARCHAR(64) NULL, FOREIGN KEY(expense_id) REFERENCES egresos(id), FOREIGN KEY(employee_id) REFERENCES nomina(id), FOREIGN KEY(commission_id) REFERENCES comisiones(id)) ENGINE=InnoDB;
-CREATE TABLE service_items (id CHAR(36) PRIMARY KEY, service_id VARCHAR(64) NOT NULL, position INT NOT NULL, descripcion TEXT NOT NULL, monto DECIMAL(18,2) NOT NULL, FOREIGN KEY(service_id) REFERENCES servicio(id), CHECK(monto >= 0), UNIQUE(service_id,position)) ENGINE=InnoDB;
-CREATE TABLE service_history (id BIGINT AUTO_INCREMENT PRIMARY KEY, service_id VARCHAR(64) NOT NULL, user_id CHAR(36) NOT NULL, texto TEXT NOT NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), FOREIGN KEY(service_id) REFERENCES servicio(id), FOREIGN KEY(user_id) REFERENCES users(id)) ENGINE=InnoDB;
-CREATE TABLE expense_approvals (expense_id VARCHAR(64) PRIMARY KEY, state VARCHAR(20) NOT NULL, requested_by CHAR(36) NOT NULL, resolved_by CHAR(36) NULL, requested_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), resolved_at DATETIME(6) NULL, FOREIGN KEY(expense_id) REFERENCES egresos(id), FOREIGN KEY(requested_by) REFERENCES users(id), FOREIGN KEY(resolved_by) REFERENCES users(id)) ENGINE=InnoDB;
-CREATE TABLE notifications (id CHAR(36) PRIMARY KEY, user_id CHAR(36) NOT NULL, texto TEXT NOT NULL, orden VARCHAR(64) NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), FOREIGN KEY(user_id) REFERENCES users(id)) ENGINE=InnoDB;
-CREATE TABLE notification_reads (notification_id CHAR(36) NOT NULL, user_id CHAR(36) NOT NULL, read_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), PRIMARY KEY(notification_id,user_id), FOREIGN KEY(notification_id) REFERENCES notifications(id), FOREIGN KEY(user_id) REFERENCES users(id)) ENGINE=InnoDB;
+CREATE TABLE payroll_payments (expense_id VARCHAR(64) PRIMARY KEY, employee_id VARCHAR(64) NOT NULL, commission_id VARCHAR(64) NULL, FOREIGN KEY(expense_id) REFERENCES egresos(id), FOREIGN KEY(employee_id) REFERENCES nomina(id), FOREIGN KEY(commission_id) REFERENCES comisiones(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE service_items (id CHAR(36) PRIMARY KEY, service_id VARCHAR(64) NOT NULL, position INT NOT NULL, descripcion TEXT NOT NULL, monto DECIMAL(18,2) NOT NULL, FOREIGN KEY(service_id) REFERENCES servicio(id), CHECK(monto >= 0), UNIQUE(service_id,position)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE service_history (id BIGINT AUTO_INCREMENT PRIMARY KEY, service_id VARCHAR(64) NOT NULL, user_id CHAR(36) NOT NULL, texto TEXT NOT NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), FOREIGN KEY(service_id) REFERENCES servicio(id), FOREIGN KEY(user_id) REFERENCES users(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE expense_approvals (expense_id VARCHAR(64) PRIMARY KEY, state VARCHAR(20) NOT NULL, requested_by CHAR(36) NOT NULL, resolved_by CHAR(36) NULL, requested_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), resolved_at DATETIME(6) NULL, FOREIGN KEY(expense_id) REFERENCES egresos(id), FOREIGN KEY(requested_by) REFERENCES users(id), FOREIGN KEY(resolved_by) REFERENCES users(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE notifications (id CHAR(36) PRIMARY KEY, user_id CHAR(36) NOT NULL, texto TEXT NOT NULL, orden VARCHAR(64) NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), FOREIGN KEY(user_id) REFERENCES users(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE notification_reads (notification_id CHAR(36) NOT NULL, user_id CHAR(36) NOT NULL, read_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), PRIMARY KEY(notification_id,user_id), FOREIGN KEY(notification_id) REFERENCES notifications(id), FOREIGN KEY(user_id) REFERENCES users(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+ALTER TABLE ventas ADD CHECK(sucursal IN ('Granjero','Troncoso')), ADD CHECK(efectivo>=0 AND transferencia>=0 AND tarjeta>=0 AND cheque>=0 AND credito>=0 AND totalVentaSicar>0);
+ALTER TABLE creditos ADD CHECK(sucursal IN ('Granjero','Troncoso'));
+ALTER TABLE cobranzas ADD CHECK(sucursal IN ('Granjero','Troncoso'));
+ALTER TABLE servicio ADD CHECK(sucursal IN ('Granjero','Troncoso'));
+ALTER TABLE cortesCaja ADD CHECK(sucursal IN ('Granjero','Troncoso')), ADD CHECK(contado>=0 AND retiro>=0 AND retiro<=contado AND fondo>=0);
+ALTER TABLE egresos ADD CHECK(sucursal IN ('Granjero','Troncoso','Ambas')), ADD CHECK(impactaCajaFisica=0 OR (metodo='Efectivo' AND cajaSucursal IN ('Granjero','Troncoso')));
+INSERT INTO categoriasGastos(id,nombre,fijo,activo) VALUES
+(UUID(),'SAT / Impuestos',1,1),(UUID(),'IMSS / SIPARE',1,1),(UUID(),'ISN',1,1),(UUID(),'Infonavit',1,1),(UUID(),'Renta',1,1),(UUID(),'Luz',1,1),(UUID(),'Agua',1,1),(UUID(),'Internet / Telefonía',1,1),(UUID(),'Contador',1,1),(UUID(),'SICAR / Software',1,1),(UUID(),'Comisión terminal',1,1),(UUID(),'Consumibles',0,1),(UUID(),'Papelería',0,1),(UUID(),'Mantenimiento',0,1),(UUID(),'Pago de tarjeta de crédito',0,1),(UUID(),'Otros',0,1);
 INSERT INTO schema_migrations(version) VALUES ('001_initial');''']
 root=Path(__file__).parent
 (root/'migrations/001_initial.sql').write_text('\n\n'.join(sql)+'\n')

@@ -51,6 +51,15 @@ final class App {
         }
         return ['settingsVersion'=>(int)$this->db->query('SELECT version FROM app_settings WHERE id=1')->fetchColumn(),'state'=>$s,'user'=>$this->p->user,'branches'=>$this->p->branches,'revision'=>(int)$this->db->query('SELECT COALESCE(MAX(seq),0) FROM change_log')->fetchColumn()];
     }
+    public function report(array $period,?string $branch): array {
+        requireThat($this->p->page('finanzas')||$this->p->page('reportes')||$this->p->page('sucursales'),'Financial report denied',403);
+        foreach(['start','end'] as $key){$dt=\DateTimeImmutable::createFromFormat('!Y-m-d',$period[$key]??'');requireThat($dt&&$dt->format('Y-m-d')===$period[$key],'Invalid report date');}
+        requireThat($period['start']<=$period['end'],'Invalid report period');
+        if($branch!==null)$this->p->branch($branch);else requireThat(count($this->p->branches)===2,'Consolidated report denied',403);
+        requireThat($branch===null||in_array($branch,['Granjero','Troncoso'],true),'Invalid report branch');
+        $state=['config'=>$this->config()];foreach(['ventas','cobranzas','egresos','cajaMovimientos'] as $t)$state[$t]=$this->r->all($t);
+        return ['period'=>$period,'branch'=>$branch,'totals'=>Finance::totals($state,$period,$branch),'labor'=>Finance::labor(array_values(array_filter($state['ventas'],fn($x)=>$x['fecha']>=$period['start']&&$x['fecha']<=$period['end']&&($branch===null||$x['sucursal']===$branch))))];
+    }
     public function command(string $action,array $d,string $key): array {
         requireThat((bool)preg_match('/^[a-zA-Z0-9_-]{16,100}$/D',$key),'Idempotency-Key required');
         $this->db->beginTransaction();
@@ -136,12 +145,13 @@ final class App {
     private function canVoid(array $x): void {requireThat(!$x['anulado']&&(!$x['pagoAplazado']||$this->settlements($x)===0),'Cannot void charge with payments',409);}
     private function requestVoid(array $d): array {
         $this->p->action('expense');$x=$this->old('egresos',$d);$this->expensePage($x);$this->canVoid($x);
+        $q=$this->db->prepare('SELECT state FROM expense_approvals WHERE expense_id=?');$q->execute([$x['id']]);requireThat($q->fetchColumn()!=='Pendiente','Void request already pending',409);
         $q=$this->db->prepare("INSERT INTO expense_approvals(expense_id,state,requested_by) VALUES (?,'Pendiente',?) ON DUPLICATE KEY UPDATE state='Pendiente',requested_by=VALUES(requested_by),requested_at=UTC_TIMESTAMP(6),resolved_by=NULL,resolved_at=NULL");$q->execute([$x['id'],$this->p->user['id']]);return $this->edit('egresos',$x,['monto'=>$x['monto']],$d['version'],'expense.requestVoid');
     }
     private function void(array $d): array {
         $this->p->action('approve');$x=$this->old('egresos',$d);$this->expensePage($x);$this->canVoid($x);requireThat(is_bool($d['approved']??null),'Decision required');
         $q=$this->db->prepare('INSERT INTO expense_approvals(expense_id,state,requested_by,resolved_by,resolved_at) VALUES (?,?,?,?,UTC_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE state=VALUES(state),resolved_by=VALUES(resolved_by),resolved_at=VALUES(resolved_at)');$q->execute([$x['id'],$d['approved']?'Aprobada':'Rechazada',$this->p->user['id'],$this->p->user['id']]);
-        $v=['monto'=>$x['monto']];if($d['approved'])$v['anulado']=true;$n=$this->edit('egresos',$x,$v,$d['version'],'expense.resolveVoid');
+        $v=['monto'=>$x['monto']];if($d['approved']){$v['anulado']=true;$v['fechaAnulacion']=gmdate('Y-m-d H:i:s');}$n=$this->edit('egresos',$x,$v,$d['version'],'expense.resolveVoid');
         if($d['approved']&&!empty($x['origenId'])&&in_array($x['grupo'],['nomina','comisiones'],true)){$t=$x['grupo'];$doc=$this->r->get($t,$x['origenId'],true);$q=$this->db->prepare('SELECT fecha FROM egresos WHERE origenId=? AND anulado=0 ORDER BY fecha DESC LIMIT 1');$q->execute([$x['origenId']]);$date=$q->fetchColumn();$v=$t==='nomina'?['ultimoPago'=>$date?:null,'estado'=>$date?'Pagado':'Activo']:['fechaPago'=>$date?:null,'estado'=>$date?'Pagada':'Pendiente'];$this->edit($t,$doc,$v,(int)$doc['_version'],'expense.reverseLinkedPayment');}return $n;
     }
     private function pay(array $d): array {

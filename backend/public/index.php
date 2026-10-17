@@ -13,7 +13,7 @@ try {
     if($op==='csrf'){BT\requireThat($method==='GET','Method not allowed',405);$out=['csrf'=>$_SESSION['csrf']];}
     elseif($op==='login'){BT\requireThat($method==='POST','Method not allowed',405);$auth->login((string)($input['username']??''),(string)($input['password']??''),(string)($_SERVER['REMOTE_ADDR']??''));$out=['user'=>$auth->policy()->user,'csrf'=>$_SESSION['csrf']];}
     elseif($op==='logout'){BT\requireThat($method==='POST','Method not allowed',405);$auth->logout();$out=['ok'=>true];}
-    else{$app=new App($db,$auth->policy());if($op==='state'){BT\requireThat($method==='GET','Method not allowed',405);$db->beginTransaction();try{$out=$app->state();$db->commit();}catch(Throwable $e){$db->rollBack();throw $e;}}else{BT\requireThat($method==='POST','Method not allowed',405);$out=$app->command($op,$input,$_SERVER['HTTP_IDEMPOTENCY_KEY']??'');}}
+    else{$app=new App($db,$auth->policy());if($op==='reports'){BT\requireThat($method==='GET','Method not allowed',405);$db->beginTransaction();try{$out=$app->report(['start'=>$_GET['start']??'','end'=>$_GET['end']??''],($_GET['branch']??'')?:null);$db->commit();}catch(Throwable $e){$db->rollBack();throw $e;}}elseif($op==='state'){BT\requireThat($method==='GET','Method not allowed',405);$db->beginTransaction();try{$out=$app->state();$db->commit();}catch(Throwable $e){$db->rollBack();throw $e;}}else{BT\requireThat($method==='POST','Method not allowed',405);$out=$app->command($op,$input,$_SERVER['HTTP_IDEMPOTENCY_KEY']??'');}}
     echo json_encode($out,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
 }catch(Problem $e){http_response_code($e->status);echo json_encode(['error'=>$e->getMessage()]);}
 catch(JsonException){http_response_code(400);echo '{"error":"Invalid JSON"}';}

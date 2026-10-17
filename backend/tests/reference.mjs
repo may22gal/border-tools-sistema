@@ -33,5 +33,5 @@ for(let i=0;i<120;i++){
   }
 }
 fs.writeFileSync(new URL('./generated/finance.json',import.meta.url),JSON.stringify(fixtures));
-fs.writeFileSync(new URL('./generated/reference.json',import.meta.url),JSON.stringify({sha256:original,pages:23,scenarios:fixtures.length}));
+fs.writeFileSync(new URL('./generated/reference.json',import.meta.url),JSON.stringify({sha256:original,pages:23,scenarios:fixtures.length,perms:vm.runInContext('PERMS',ctx)}));
 console.log(`Original JavaScript: 23 screens; ${fixtures.length} synthetic financial scenarios generated.`);
