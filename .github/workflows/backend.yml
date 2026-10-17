@@ -26,7 +26,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: PHP and PDO MySQL
-        run: php -v && php -r 'exit(extension_loaded("pdo_mysql") ? 0 : 1);'
+        run: |
+          php -v
+          php -r 'exit(extension_loaded("pdo_mysql") ? 0 : 1);'
       - name: PHP syntax
         run: find backend -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Original JavaScript baseline
