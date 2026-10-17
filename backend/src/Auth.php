@@ -5,7 +5,7 @@ use PDO;
 final class Auth {
     public function __construct(private PDO $db,private array $config) {}
     public function session(): void {
-        requireThat((!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')||(!empty($this->config['allow_http_test'])&&(in_array($_SERVER['REMOTE_ADDR']??'',['127.0.0.1','::1'],true)||(!empty($this->config['demo_mode'])&&$this->config['origin']==='http://localhost:8080'&&($_SERVER['HTTP_HOST']??'')==='localhost:8080'))),'HTTPS required',400);
+        requireTransport($this->config);
         ini_set('session.use_strict_mode','1');ini_set('session.use_only_cookies','1');ini_set('session.gc_maxlifetime','1800');
         if(!empty($this->config['session_path']))session_save_path($this->config['session_path']);
         session_name('BTADMIN');session_set_cookie_params(['lifetime'=>0,'path'=>'/','secure'=>true,'httponly'=>true,'samesite'=>'Strict']);session_start();

@@ -41,7 +41,7 @@ INSERT INTO app_settings VALUES (1, '{"diagnosticoEstandar":250,"requireTransfer
 CREATE TABLE write_mutex (id INT PRIMARY KEY) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO write_mutex VALUES (1);
 CREATE TABLE sequences (name VARCHAR(40) PRIMARY KEY, next_value BIGINT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-INSERT INTO sequences VALUES ('service',1027);
+INSERT INTO sequences VALUES ('service',1027),('credit',1001);
 CREATE TABLE login_attempts (bucket CHAR(64) PRIMARY KEY, failures INT NOT NULL DEFAULT 0, blocked_until DATETIME(6) NULL, updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE requests (user_id CHAR(36) NOT NULL, request_key VARCHAR(100) NOT NULL, fingerprint CHAR(64) NOT NULL, response JSON NOT NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), PRIMARY KEY(user_id,request_key), FOREIGN KEY(user_id) REFERENCES users(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE change_log (seq BIGINT AUTO_INCREMENT PRIMARY KEY, user_id CHAR(36) NOT NULL, action VARCHAR(100) NOT NULL, entity VARCHAR(100) NOT NULL, record_id VARCHAR(64) NULL, branch_name VARCHAR(255) NULL, before_data JSON NULL, after_data JSON NULL, created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), FOREIGN KEY(user_id) REFERENCES users(id), INDEX(branch_name,seq)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

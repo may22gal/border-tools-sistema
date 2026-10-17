@@ -3,6 +3,9 @@ on:
   push:
     branches: [migration/php-mysql]
   workflow_dispatch:
+concurrency:
+  group: migration-checks-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -38,6 +41,7 @@ jobs:
       - name: Real MySQL integration and concurrency
         run: php backend/tests/integration.php
   connected-ui:
+    timeout-minutes: 15
     runs-on: ubuntu-24.04
     services:
       mysql:
@@ -71,14 +75,14 @@ jobs:
       - name: Prepare connected synthetic demo
         run: |
           php demo/seed.php
-          BT_CONFIG_FILE="$PWD/demo/.private/config.php" php -S 127.0.0.1:8080 -t backend/public > /tmp/bt-demo-php.log 2>&1 &
+          BT_CONFIG_FILE="$PWD/demo/.private/config.php" php -S 127.0.0.1:8080 -t backend/public backend/public/router.php > /tmp/bt-demo-php.log 2>&1 &
           for i in $(seq 1 30); do curl --silent http://localhost:8080/app.php >/dev/null && break; sleep 1; done
       - name: Install browser test dependencies
         run: |
           npm install --ignore-scripts --no-audit --no-fund
           npx playwright install --with-deps chromium
       - name: Desktop and mobile connected workflows
-        run: npx playwright test
+        run: npx playwright test --max-failures=2
       - name: Save visual proof and test report
         if: always()
         uses: actions/upload-artifact@v4

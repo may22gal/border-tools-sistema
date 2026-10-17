@@ -9,6 +9,14 @@ final class Problem extends RuntimeException {
 function requireThat(bool $ok, string $message, int $status=422): void {
     if (!$ok) throw new Problem($status,$message);
 }
+function requireTransport(array $config): void {
+    $secure=!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off';
+    $loopback=in_array($_SERVER['REMOTE_ADDR']??'',['127.0.0.1','::1'],true);
+    $origin=$config['origin']??'';
+    $host=parse_url($origin,PHP_URL_HOST).(parse_url($origin,PHP_URL_PORT)?':'.parse_url($origin,PHP_URL_PORT):'');
+    $synthetic=!empty($config['demo_mode'])&&($_SERVER['HTTP_HOST']??'')===$host;
+    requireThat($secure||(!empty($config['allow_http_test'])&&($loopback||$synthetic)),'HTTPS required',400);
+}
 function uuid(): string {
     $b=random_bytes(16); $b[6]=chr((ord($b[6])&15)|64); $b[8]=chr((ord($b[8])&63)|128);
     $h=bin2hex($b); return substr($h,0,8).'-'.substr($h,8,4).'-'.substr($h,12,4).'-'.substr($h,16,4).'-'.substr($h,20);
@@ -74,7 +82,7 @@ final class Repo {
         return array_values(array_filter($rows,function($x){try{if(isset($x['sucursal']))$this->policy->branch($x['sucursal']);return true;}catch(Problem){return false;}}));
     }
     public function insert(string $t,array $d): array {
-        $this->table($t);$d=$this->validate($t,$d);$d['id']=uuid();
+        $this->table($t);$d=$this->validate($t,$d);if($t==='creditos'){$seq=(int)$this->db->query("SELECT next_value FROM sequences WHERE name='credit' FOR UPDATE")->fetchColumn();$this->db->exec("UPDATE sequences SET next_value=next_value+1 WHERE name='credit'");$d['id']='CR-'.$seq;}else $d['id']=uuid();
         $cols=array_keys($d);$q=$this->db->prepare("INSERT INTO `$t` (`".implode('`,`',$cols)."`) VALUES (".implode(',',array_fill(0,count($cols),'?')).")");$q->execute(array_values($d));return $this->get($t,$d['id']);
     }
     public function update(string $t,array $old,array $d,int $version): array {

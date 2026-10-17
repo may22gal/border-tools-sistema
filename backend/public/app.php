@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__).'/src/bootstrap.php';
+try{$configPath=getenv('BT_CONFIG_FILE');BT\requireThat($configPath&&is_file($configPath),'Configuración no disponible',503);BT\requireTransport(require $configPath);}catch(BT\Problem $e){http_response_code($e->status);exit(htmlspecialchars($e->getMessage(),ENT_QUOTES,'UTF-8'));}
 // This renders the existing, unchanged application. Only connected-mode plumbing differs.
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');

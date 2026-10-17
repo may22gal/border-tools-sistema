@@ -31,20 +31,42 @@ final class App {
         if($cash){requireThat(in_array($cs,['Granjero','Troncoso'],true),'Choose physical cash branch');$this->p->branch($cs);}
         return ['metodo'=>$m,'impactaCajaFisica'=>$cash,'cajaSucursal'=>$cs];
     }
+    private function activityText(array $event): string {
+        $x=json_decode($event['after_data']??'null',true)??[];
+        $text=match($event['action']){
+            'sales.create','sales.replace'=>'Corte SICAR '.($x['sucursal']??'').' '.($x['fecha']??'').' · '.($x['totalVentaSicar']??''),
+            'credit.payment'=>'Abono '.($x['monto']??'').' · '.($x['cliente']??''),
+            'credit.assign'=>'Crédito asignado · '.($x['cliente']??''),
+            'expense.create'=>'Egreso '.($x['monto']??'').' · '.($x['concepto']??''),
+            'expense.edit'=>'Corrección de egreso · '.($x['concepto']??''),
+            'expense.requestVoid'=>'Solicitó anulación · '.($x['concepto']??''),
+            'expense.resolveVoid'=>!empty($x['anulado'])?'Anuló egreso · '.($x['concepto']??''):'Resolución de solicitud de anulación',
+            'expense.settle'=>'Pago de tarjeta · '.($x['concepto']??''),
+            'payroll.pay'=>'Pago registrado · '.($x['proveedor']??$x['nombre']??''),
+            'cash.close'=>'Corte Caja 1 · '.($x['sucursal']??'').' · diferencia '.($x['diferencia']??''),
+            'cash.movement'=>'Movimiento de caja · '.($x['concepto']??''),
+            'settings.update'=>'Configuración del sistema actualizada',
+            'service.create'=>'Orden '.($x['folio']??'').' recibida · '.($x['cliente']??''),
+            default=>str_starts_with($event['action'],'service.')?'Servicio '.($x['folio']??'').' · '.($x['estado']??'actualizado'):'Registro actualizado · '.($x['concepto']??$x['nombre']??$x['producto']??$x['folio']??''),
+        };return $text;
+    }
     public function state(): array {
         $s=['version'=>'2.4','config'=>$this->config()];
         foreach(self::READ as $t=>$pages){$allowed=false;foreach($pages as $page)if($this->p->page($page)){$allowed=true;break;}$s[$t]=$allowed?$this->r->all($t):[];}
+        if(!$this->p->page('ventas')&&!$this->p->page('ventas_admin')&&!$this->p->page('mano_obra')&&!$this->p->page('finanzas')&&!$this->p->page('caja')&&!$this->p->page('reportes')&&!$this->p->page('sucursales')){
+            $s['ventas']=array_map(fn($x)=>array_intersect_key($x,array_flip(['id','_version','fecha','sucursal','credito','creditoAsignado'])),$s['ventas']);
+        }
         foreach($s['servicio'] as &$x){$q=$this->db->prepare('SELECT descripcion,monto FROM service_items WHERE service_id=? ORDER BY position');$q->execute([$x['id']]);$x['cotItems']=$q->fetchAll();$q=$this->db->prepare('SELECT texto,created_at AS ts FROM service_history WHERE service_id=? ORDER BY id');$q->execute([$x['id']]);$x['historial']=$q->fetchAll();}unset($x);
         foreach($s['egresos'] as &$e){
             $q=$this->db->prepare('SELECT state AS estado,requested_at AS fecha,resolved_at AS fechaResolucion,requested_by AS usuario FROM expense_approvals WHERE expense_id=?');$q->execute([$e['id']]);$e['solicitudAnulacion']=$q->fetch()?:null;
             $q=$this->db->prepare("SELECT c.action AS accion,c.created_at AS fecha,u.display_name AS usuario,c.before_data,c.after_data FROM change_log c JOIN users u ON u.id=c.user_id WHERE c.entity='egresos' AND c.record_id=? AND c.before_data IS NOT NULL ORDER BY seq");$q->execute([$e['id']]);$e['historialCambios']=[];
-            foreach($q as $h)$e['historialCambios'][]=['accion'=>$h['accion'],'fecha'=>$h['fecha'],'usuario'=>$h['usuario'],'anterior'=>json_decode($h['before_data'],true),'nuevo'=>json_decode($h['after_data'],true)];
+            foreach($q as $h)$e['historialCambios'][]=['accion'=>match($h['accion']){'expense.edit'=>'Corrección de egreso','expense.resolveVoid'=>'Resolución de anulación','expense.requestVoid'=>'Solicitud de anulación',default=>'Movimiento actualizado'},'fecha'=>$h['fecha'],'usuario'=>$h['usuario'],'anterior'=>json_decode($h['before_data'],true),'nuevo'=>json_decode($h['after_data'],true)];
         }unset($e);
         // Do not expose payroll records merely because a user can view general expenses.
         if(!$this->p->page('finanzas')&&!$this->p->page('caja')&&!$this->p->page('reportes')&&!$this->p->page('sucursales'))$s['egresos']=array_values(array_filter($s['egresos'],fn($e)=>$this->p->page(Finance::group($e))));
         // Audit payloads are not included in activity summaries.
 
-        $s['activity']=[];$q=$this->db->prepare('SELECT action,branch_name,created_at FROM change_log WHERE user_id=? OR ?=1 ORDER BY seq DESC LIMIT 60');$q->execute([$this->p->user['id'],$this->p->user['role']==='direccion'&&count($this->p->branches)===2?1:0]);foreach($q as $a)$s['activity'][]=['texto'=>$a['action'],'suc'=>$a['branch_name']==='Granjero'?'g':($a['branch_name']==='Troncoso'?'t':'sys'),'ts'=>$a['created_at']];
+        $s['activity']=[];$q=$this->db->prepare('SELECT action,branch_name,created_at,after_data FROM change_log WHERE user_id=? OR ?=1 ORDER BY seq DESC LIMIT 60');$q->execute([$this->p->user['id'],$this->p->user['role']==='direccion'&&count($this->p->branches)===2?1:0]);foreach($q as $a)$s['activity'][]=['texto'=>$this->activityText($a),'suc'=>$a['branch_name']==='Granjero'?'g':($a['branch_name']==='Troncoso'?'t':'sys'),'ts'=>$a['created_at']];
         $s['notifications']=[];
         if($this->p->user['role']==='direccion'){
             $q=$this->db->prepare('SELECT n.id,n.texto,n.orden,n.created_at AS ts,u.display_name AS `by`,(r.user_id IS NOT NULL) AS `read` FROM notifications n JOIN users u ON u.id=n.user_id LEFT JOIN notification_reads r ON r.notification_id=n.id AND r.user_id=? ORDER BY n.created_at DESC LIMIT 50');$q->execute([$this->p->user['id']]);$s['notifications']=$q->fetchAll();

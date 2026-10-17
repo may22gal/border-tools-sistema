@@ -1,0 +1,31 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+      MYSQL_DATABASE: bt_demo
+    volumes:
+      - codespace-demo-db:/var/lib/mysql
+    healthcheck:
+      test: [CMD-SHELL, 'mysqladmin ping -h localhost --silent']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  app:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile
+    volumes:
+      - ..:/project:cached
+      - codespace-demo-private:/private-demo
+    environment:
+      BT_DEMO: '1'
+      BT_TEST_USER: root
+      CODESPACE_NAME: ${CODESPACE_NAME:-}
+      GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN: ${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}
+    depends_on:
+      mysql:
+        condition: service_healthy
+volumes:
+  codespace-demo-db:
+  codespace-demo-private:

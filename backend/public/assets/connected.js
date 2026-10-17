@@ -2,7 +2,7 @@
 'use strict';
 const BT = {
   csrf: '', user: null, branches: [], pages: [], settingsVersion: 0, busy: false,
-  syncing: false, revision: -1, pendingStorage: 'bt_pending_receipts_v1',
+  syncing: false, dirty: false, revision: -1, pendingStorage: 'bt_pending_receipts_v1',
   records: new Map(), // IDs and versions captured when a modal opens, not array positions.
   async request(action, data, key) {
     const opts={credentials:'same-origin',cache:'no-store',headers:{}};
@@ -94,7 +94,7 @@ BT.request=async function(action,data,key){
 const btModal=openModal;
 openModal=function(title,body){BT.capture();btModal(title,body);delete document.getElementById('modal').dataset.conflict;};
 const btClose=closeModal;
-closeModal=function(){btClose();if(BT.user&&!BT.busy)BT.sync().catch(()=>{});};
+closeModal=function(){BT.dirty=false;btClose();if(BT.user&&!BT.busy)BT.sync().catch(()=>{});};
 roleHas=page=>BT.pages.includes(page);
 lockedSuc=()=>BT.branches.length===1?BT.branches[0].toLowerCase():null;
 sucOptions=function(selected,{ambas=false}={}){
@@ -147,7 +147,7 @@ savePago=function(tipo,i){
   if(tipo==='nomina'&&S.egresos.some(e=>!e.anulado&&e.origenId===x.id&&e.periodo.trim().toLowerCase()===d.periodo.trim().toLowerCase())){if(!confirm('Ya existe un pago de este empleado para ese período. ¿Registrar otro pago adicional?'))return;d.confirmAdditional=true;}
   return BT.mutate('payroll.pay',d,{page:tipo,after:()=>{reportMode='week';reportAnchor=d.fecha;reportCustomStart='';reportCustomEnd='';},message:'Pago guardado ✓ · visible en el período de pago'});
 };
-saveCredito=()=>BT.mutate('credit.create',fields({cliente:'cr_cliente',fecha:'cr_fecha',sucursal:'cr_suc',monto:'cr_monto'}),{page:'credito'});
+saveCredito=function(){const d=fields({cliente:'cr_cliente',fecha:'cr_fecha',sucursal:'cr_suc',monto:'cr_monto'}),c=matchingClient(d.cliente,d.sucursal);if(c)d.clienteId=c.id;return BT.mutate('credit.create',d,{page:'credito'});};
 saveAsignarCredito=function(i){const x=BT.row('ventas',i),d={...BT.identity(x),cliente:val('ac_cliente').trim(),monto:val('ac_monto')},c=matchingClient(d.cliente,x.sucursal);if(c)d.clienteId=c.id;return BT.mutate('credit.assign',d,{page:'credito'});};
 saveCobroCredito=i=>BT.mutate('credit.payment',{...ident('creditos',i),...abonoFields('cc')},{page:'credito',message:'Abono registrado ✓'});
 saveAbonoB2B=i=>BT.mutate('b2b.payment',{...ident('clientesB2B',i),...abonoFields('ab')},{page:'clientes',message:'Abono registrado ✓'});
@@ -197,8 +197,9 @@ const password=document.querySelector('#login input[type=password]');password.va
 document.getElementById('loginTip').textContent='Ingresa con tu cuenta individual. Los datos se guardan y comparten de forma segura desde el servidor.';
 document.querySelector('.demo-badge').textContent='SISTEMA CONECTADO';
 password.addEventListener('keydown',e=>{if(e.key==='Enter')enter();});
-setInterval(()=>BT.sync().catch(()=>{}),5000);
+setInterval(()=>BT.sync().then(()=>BT.recover()).catch(()=>{}),5000);
 window.addEventListener('focus',()=>{BT.sync().then(()=>BT.recover()).catch(()=>{});});
 window.addEventListener('online',()=>{BT.sync().then(()=>BT.recover()).catch(()=>{});});
-window.addEventListener('beforeunload',e=>{if(BT.busy){e.preventDefault();e.returnValue='';}});
+document.getElementById('modal').addEventListener('input',()=>{BT.dirty=true;});
+window.addEventListener('beforeunload',e=>{if(BT.busy||BT.dirty||Object.keys(BT.receipts()).length){e.preventDefault();e.returnValue='';}});
 (async()=>{try{BT.csrf=(await BT.request('csrf')).csrf;const p=await BT.request('state');if(sessionStorage.getItem('bt_receipt_owner')&&sessionStorage.getItem('bt_receipt_owner')!==p.user.id)BT.saveReceipts({});sessionStorage.setItem('bt_receipt_owner',p.user.id);BT.apply(p);document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden');await BT.recover();}catch(e){if(e.status!==401)toast(e.message||'No se pudo conectar al servidor.');}})();

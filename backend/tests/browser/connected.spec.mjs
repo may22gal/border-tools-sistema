@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
+test.beforeEach(async({page})=>{page.on('dialog',d=>d.accept());});
 const credentials=()=>JSON.parse(fs.readFileSync('demo/.private/credentials.json','utf8'));
 async function login(page,role='direccion'){
   await page.goto('/app.php');await page.waitForFunction(()=>window.BT===undefined?typeof BT!=='undefined'&&BT.csrf:BT.csrf);
@@ -55,7 +56,7 @@ test('stale expense correction cannot overwrite another computer',async({page,br
  await other.close();
 });
 test('server permissions, CSRF, individual accounts and logout',async({page})=>{
- await login(page,'ventas_g');await expect(page.locator('#nav button[data-page=finanzas]')).toBeHidden();
+ await login(page,'ventas_g');const session=(await page.context().cookies()).find(c=>c.name==='BTADMIN');expect(session.httpOnly).toBe(true);expect(session.secure).toBe(true);expect(session.sameSite).toBe('Strict');await expect(page.locator('#nav button[data-page=finanzas]')).toBeHidden();
  const result=await page.evaluate(async()=>{
    const state=await(await fetch('index.php?action=state')).json();
    const forbidden=await fetch('index.php?action=expense.create',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':BT.csrf,'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({})});
@@ -88,4 +89,34 @@ test('service reception, diagnostic, quote and authorization use original forms'
  await expect(card).toContainText('Autorizada');await card.getByRole('button',{name:'Iniciar reparación →'}).click();await expect(card).toContainText('En reparación');
  await card.getByRole('button',{name:'Marcar como lista →'}).click();await expect(card).toContainText('Lista');await card.getByRole('button',{name:'Registrar entrega y cobro →'}).click();await submit(page,'Confirmar entrega y cobro');
  await expect(page.locator('#tablaCerradas')).toContainText(name);
+});
+test('SICAR PDF, credit allocation, payroll, commission and cash forms',async({page,browser},info)=>{
+ await login(page);await navigate(page,'ventas');
+ await page.getByRole('button',{name:'+ Registrar corte diario',exact:true}).click();
+ const date=info.project.name==='desktop'?'2027-01-05':'2027-01-06';await page.locator('#v_fecha').fill(date);
+ await page.locator('#v_efectivo').fill('100.00');await page.locator('#v_credito').fill('100.00');await page.locator('#v_sicar_total').fill('200.00');
+ const pdf=Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
+ await page.locator('#v_pdf').setInputFiles({name:'SICAR-ficticio.pdf',mimeType:'application/pdf',buffer:pdf});await submit(page,'Guardar corte');
+ const receipt=await page.evaluate(d=>S.ventas.find(x=>x.fecha===d),date);expect(receipt.evidenciaId).toBeTruthy();
+ const file=await page.request.get('/evidence.php?id='+receipt.evidenciaId);expect(file.status()).toBe(200);expect((await file.body()).equals(pdf)).toBe(true);
+ await navigate(page,'credito');const row=page.locator('tr').filter({hasText:date}).filter({has:page.getByRole('button',{name:'Asignar a cliente'})});await row.getByRole('button',{name:'Asignar a cliente'}).click();
+ await page.locator('#ac_cliente').fill('Cliente crédito UI '+info.project.name);await page.locator('#ac_monto').fill('50.00');await submit(page,'Crear cuenta por cobrar');
+ const cr=page.locator('tr').filter({hasText:'Cliente crédito UI '+info.project.name});await cr.getByRole('button',{name:'Registrar abono'}).click();await page.locator('#cc_monto').fill('10.00');await submit(page,'Registrar abono');
+ await navigate(page,'nomina');await page.getByRole('button',{name:'+ Registrar pago',exact:true}).first().click();await page.locator('#pg_periodo').fill('Pago UI '+info.project.name);await page.locator('#pg_monto').fill('10.00');await submit(page,'Confirmar pago');
+ await navigate(page,'comisiones');await page.getByRole('button',{name:'Registrar pago',exact:true}).first().click();await page.locator('#pg_monto').fill('10.00');await submit(page,'Confirmar pago');
+ await navigate(page,'caja');await page.getByRole('button',{name:'+ Movimiento de efectivo',exact:true}).click();await page.locator('#cmx_monto').fill('5.00');await page.locator('#cmx_concepto').fill('Fondo UI '+info.project.name);await submit(page,'Guardar movimiento');
+ await page.getByRole('button',{name:'+ Hacer corte',exact:true}).click();await page.locator('#ccx_contado').fill('1300.00');await submit(page,'Guardar corte');
+ const other=await browser.newContext({baseURL:'http://localhost:8080'});const p2=await other.newPage();await login(p2,'ventas_t');const res=await p2.request.get('/evidence.php?id='+receipt.evidenciaId);expect(res.status()).toBe(403);await other.close();
+});
+test('financial corrections, history and approval shared with Direction',async({page,browser},info)=>{
+ await login(page,'finanzas');const other=await browser.newContext({baseURL:'http://localhost:8080'});const director=await other.newPage();await login(director);
+ await navigate(page,'gastos');await page.getByRole('button',{name:'+ Registrar gasto',exact:true}).click();const text='Autorización UI '+info.project.name+' '+Date.now();await page.locator('#e_concepto').fill(text);await page.locator('#e_monto').fill('77.00');await submit(page,'Guardar gasto');
+ const line=page.locator('.rline').filter({hasText:text}).first();await line.getByRole('button',{name:'Editar',exact:true}).click();await page.locator('#ed_monto').fill('78.00');await submit(page,'Guardar cambios');await line.getByRole('button',{name:'Historial',exact:true}).click();await expect(page.locator('#modal')).toContainText('78');await page.locator('#modal').getByRole('button',{name:'✕',exact:true}).click();
+ await line.getByRole('button',{name:'Solicitar anulación',exact:true}).click();await page.waitForFunction(()=>!BT.busy);
+ await expect.poll(()=>director.evaluate(t=>S.egresos.find(e=>e.concepto===t)?.solicitudAnulacion?.estado,text),{timeout:15000}).toBe('Pendiente');
+ await navigate(director,'finanzas');director.on('dialog',d=>d.accept());await director.getByRole('button',{name:'Autorizar anulación',exact:true}).last().click();await director.waitForFunction(()=>!BT.busy);
+ await expect.poll(()=>page.evaluate(t=>S.egresos.find(e=>e.concepto===t)?.anulado,text),{timeout:15000}).toBe(true);await other.close();
+});
+test('settings controls write only on server confirmation and restore original flag',async({page})=>{
+ await login(page);await navigate(page,'permisos');const checkbox=page.locator('#chkTransfer');const initial=await checkbox.isChecked();await checkbox.setChecked(!initial);await page.waitForFunction(()=>!BT.busy);await page.reload();await expect(page.locator('#app')).not.toHaveClass(/hidden/);await navigate(page,'permisos');await expect(page.locator('#chkTransfer')).toBeChecked({checked:!initial});await page.locator('#chkTransfer').setChecked(initial);await page.waitForFunction(()=>!BT.busy);
 });
