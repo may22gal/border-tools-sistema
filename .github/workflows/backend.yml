@@ -37,3 +37,55 @@ jobs:
         run: php backend/tests/finance.php
       - name: Real MySQL integration and concurrency
         run: php backend/tests/integration.php
+  connected-ui:
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: bt_demo
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+    env:
+      BT_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=bt_demo;charset=utf8mb4
+      BT_TEST_USER: root
+      BT_DEMO: '1'
+      BT_ORIGIN: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, fileinfo
+          coverage: none
+      - name: Validate PHP and JavaScript
+        run: |
+          find backend demo -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check backend/public/assets/connected.js
+      - name: Prepare connected synthetic demo
+        run: |
+          php demo/seed.php
+          BT_CONFIG_FILE="$PWD/demo/.private/config.php" php -S 127.0.0.1:8080 -t backend/public > /tmp/bt-demo-php.log 2>&1 &
+          for i in $(seq 1 30); do curl --silent http://localhost:8080/app.php >/dev/null && break; sleep 1; done
+      - name: Install browser test dependencies
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Desktop and mobile connected workflows
+        run: npx playwright test
+      - name: Save visual proof and test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connected-desktop-mobile-proof
+          path: |
+            test-results/
+            playwright-report/
+            /tmp/bt-demo-php.log
+          retention-days: 14

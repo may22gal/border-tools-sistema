@@ -1,0 +1,91 @@
+import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
+const credentials=()=>JSON.parse(fs.readFileSync('demo/.private/credentials.json','utf8'));
+async function login(page,role='direccion'){
+  await page.goto('/app.php');await page.waitForFunction(()=>window.BT===undefined?typeof BT!=='undefined'&&BT.csrf:BT.csrf);
+  const c=credentials()[role];await page.locator('#username').fill(c.username);await page.locator('#login input[type=password]').fill(c.password);await page.locator('#btnEntrar').click();await expect(page.locator('#app')).not.toHaveClass(/hidden/);
+}
+async function navigate(page,name){
+  if(await page.locator('.mobile-btn').isVisible())await page.locator('.mobile-btn').click();
+  await page.locator('#nav button[data-page="'+name+'"]').click();await expect(page.locator('#view')).not.toBeEmpty();
+}
+async function submit(page,name='Guardar'){
+  await page.locator('#modal').getByRole('button',{name,exact:true}).click();await expect(page.locator('#modal')).toHaveClass(/hidden/);await page.waitForFunction(()=>!BT.busy);
+}
+const pages=['home','ventas','ventas_admin','mano_obra','sucursales','proveedores','gastos','servicio','servicio_stats','credito','caja','finanzas','reportes','facturacion','inventario','ml','oportunidades','compras','clientes','nomina','comisiones','excel','permisos'];
+for(const module of pages){
+ test('screen '+module,async({page},info)=>{
+   const errors=[];page.on('pageerror',e=>errors.push(e.message));await login(page);await navigate(page,module);
+   await expect(page.locator('#view h2')).toBeVisible();await expect(page.locator('#view')).not.toContainText('undefined');
+   await page.screenshot({path:info.outputPath(module+'.png'),fullPage:true});expect(errors).toEqual([]);
+   const local=await page.evaluate(()=>Object.keys(localStorage));expect(local.every(k=>k==='bt_prefs')).toBeTruthy();
+ });
+}
+test('general expense form, second computer, duplicate-click prevention and reload',async({page,browser},info)=>{
+ await login(page);const other=await browser.newContext({baseURL:'http://localhost:8080',viewport:info.project.use.viewport,isMobile:info.project.use.isMobile,hasTouch:info.project.use.hasTouch});const p2=await other.newPage();await login(p2);
+ await navigate(page,'gastos');await page.getByRole('button',{name:'+ Registrar gasto',exact:true}).click();
+ const text='Gasto prueba '+info.project.name+' '+Date.now();await page.locator('#e_concepto').fill(text);await page.locator('#e_monto').fill('123.45');
+ const button=page.locator('#modal button.primary');await button.click({clickCount:2});await expect(page.locator('#modal')).toHaveClass(/hidden/);
+ await expect.poll(()=>p2.evaluate(t=>S.egresos.filter(e=>e.concepto===t).length,text),{timeout:15000}).toBe(1);
+ await page.reload();await expect(page.locator('#app')).not.toHaveClass(/hidden/);expect(await page.evaluate(t=>S.egresos.filter(e=>e.concepto===t).length,text)).toBe(1);
+ await other.close();
+});
+test('offline save retains the form and only succeeds after reconnect',async({page,context},info)=>{
+ await login(page);await navigate(page,'proveedores');await page.getByRole('button',{name:'+ Registrar pago',exact:true}).click();
+ const text='Proveedor offline '+info.project.name+' '+Date.now();await page.locator('#e_concepto').fill(text);await page.locator('#e_prov').fill('Proveedor ficticio');await page.locator('#e_monto').fill('33.20');
+ await context.setOffline(true);await page.locator('#modal button.primary').click();await expect.poll(()=>page.evaluate(()=>BT.busy)).toBe(false);
+ await expect(page.locator('#modal')).not.toHaveClass(/hidden/);await expect(page.locator('#e_concepto')).toHaveValue(text);
+ expect(await page.evaluate(t=>S.egresos.some(e=>e.concepto===t),text)).toBe(false);
+ await context.setOffline(false);await page.locator('#modal button.primary').click();await expect(page.locator('#modal')).toHaveClass(/hidden/);expect(await page.evaluate(t=>S.egresos.filter(e=>e.concepto===t).length,text)).toBe(1);
+});
+test('response lost after commit and refresh recovers one server payment',async({page},info)=>{
+ await login(page);await navigate(page,'gastos');await page.getByRole('button',{name:'+ Registrar gasto',exact:true}).click();
+ const text='Respuesta perdida '+info.project.name+' '+Date.now();await page.locator('#e_concepto').fill(text);await page.locator('#e_monto').fill('19.99');
+ let lost=false;await page.route('**/index.php?action=expense.create',async route=>{if(!lost){lost=true;await route.fetch();await route.abort('failed');}else await route.continue();});
+ await page.locator('#modal button.primary').click();await page.waitForFunction(()=>!BT.busy);await expect(page.locator('#modal')).not.toHaveClass(/hidden/);
+ await page.reload();await expect(page.locator('#app')).not.toHaveClass(/hidden/);await expect.poll(()=>page.evaluate(t=>S.egresos.filter(e=>e.concepto===t).length,text)).toBe(1);
+ await page.waitForFunction(()=>Object.keys(BT.receipts()).length===0);expect(await page.evaluate(t=>S.egresos.filter(e=>e.concepto===t).length,text)).toBe(1);
+});
+test('stale expense correction cannot overwrite another computer',async({page,browser},info)=>{
+ await login(page);await navigate(page,'gastos');const other=await browser.newContext({baseURL:'http://localhost:8080',viewport:info.project.use.viewport,isMobile:info.project.use.isMobile,hasTouch:info.project.use.hasTouch});const p2=await other.newPage();await login(p2);await navigate(p2,'gastos');
+ await page.locator('#view button').filter({hasText:'Editar'}).first().click();await p2.locator('#view button').filter({hasText:'Editar'}).first().click();
+ await p2.locator('#ed_concepto').fill('Corrección confirmada '+info.project.name);await submit(p2,'Guardar cambios');
+ await page.locator('#ed_monto').fill('99.01');await page.locator('#modal').getByRole('button',{name:'Guardar cambios',exact:true}).click();await page.waitForFunction(()=>!BT.busy);
+ await expect(page.locator('#modal')).not.toHaveClass(/hidden/);await expect(page.locator('#modal')).toHaveAttribute('data-conflict','1');
+ await other.close();
+});
+test('server permissions, CSRF, individual accounts and logout',async({page})=>{
+ await login(page,'ventas_g');await expect(page.locator('#nav button[data-page=finanzas]')).toBeHidden();
+ const result=await page.evaluate(async()=>{
+   const state=await(await fetch('index.php?action=state')).json();
+   const forbidden=await fetch('index.php?action=expense.create',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':BT.csrf,'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({})});
+   const csrf=await fetch('index.php?action=sales.save',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':'invalid'},body:'{}'});
+   return {forbidden:forbidden.status,csrf:csrf.status,expenseCount:state.state.egresos.length,branches:state.state.ventas.map(x=>x.sucursal)};
+ });expect(result.forbidden).toBe(403);expect(result.csrf).toBe(403);expect(result.expenseCount).toBe(0);expect(result.branches.every(b=>b==='Granjero')).toBe(true);
+ await page.getByRole('button',{name:'Salir',exact:true}).click();await expect(page.locator('#login')).not.toHaveClass(/hidden/);expect(await page.evaluate(async()=> (await fetch('index.php?action=state')).status)).toBe(401);
+});
+test('remaining catalog forms persist using existing fields',async({page},info)=>{
+ await login(page);const tag=info.project.name+' '+Date.now();
+ const cases=[
+ ['facturacion','+ Nueva factura',{f_folio:'F-'+tag,f_cliente:'Cliente '+tag,f_total:'100.01'}],
+ ['inventario','+ Mínimo',{sm_prod:'Producto '+tag,sm_sku:'SKU-'+tag,sm_actual:'3',sm_min:'5'}],
+ ['ml','+ Agregar',{m_prod:'Publicación '+tag,m_precio:'99',m_stock:'2'}],
+ ['oportunidades','+ Nueva',{op_nom:'Prospecto '+tag,op_monto:'1000'}],
+ ['compras','+ Orden de compra',{c_folio:'OC-'+tag,c_prov:'Proveedor '+tag,c_monto:'100'}],
+ ['clientes','+ Cliente',{b_nombre:'Empresa '+tag,b_contacto:'Prueba',b_credito:'200'}]
+ ];
+ for(const [name,button,fields] of cases){await navigate(page,name);await page.getByRole('button',{name:button,exact:true}).click();for(const [id,value] of Object.entries(fields))await page.locator('#'+id).fill(value);await submit(page);}
+ await navigate(page,'nomina');await page.getByRole('button',{name:'+ Dar de alta empleado',exact:true}).click();await page.locator('#n_nombre').fill('Empleado '+tag);await page.locator('#n_sueldo').fill('100.00');await submit(page,'Guardar empleado');
+ await navigate(page,'comisiones');await page.getByRole('button',{name:'+ Registrar comisión',exact:true}).click();await page.locator('#cm_periodo').fill(tag);await page.locator('#cm_monto').fill('25.00');await submit(page,'Guardar comisión');
+ await page.reload();await expect(page.locator('#app')).not.toHaveClass(/hidden/);expect(await page.evaluate(t=>S.facturacion.some(x=>x.cliente==='Cliente '+t)&&S.ml.some(x=>x.producto==='Publicación '+t)&&S.nomina.some(x=>x.nombre==='Empleado '+t),tag)).toBe(true);
+});
+test('service reception, diagnostic, quote and authorization use original forms',async({page},info)=>{
+ await login(page);await navigate(page,'servicio');await page.getByRole('button',{name:'+ Recibir herramienta',exact:true}).click();const name='Servicio UI '+info.project.name+' '+Date.now();
+ await page.locator('#o_cliente').fill(name);await page.locator('#o_herr').fill('Herramienta ficticia');await submit(page,'Registrar entrada');
+ const card=page.locator('.orden-card').filter({hasText:name});await card.getByRole('button',{name:'Registrar diagnóstico →'}).click();await page.locator('#diag_txt').fill('Diagnóstico de prueba');await submit(page,'Guardar diagnóstico');
+ await card.getByRole('button',{name:'Enviar cotización →'}).click();await page.locator('#cot_monto').fill('400.00');await submit(page,'Enviar cotización');
+ await card.getByRole('button',{name:'Registrar respuesta del cliente →'}).click();await submit(page,'✓ Autorizó');
+ await expect(card).toContainText('Autorizada');await card.getByRole('button',{name:'Iniciar reparación →'}).click();await expect(card).toContainText('En reparación');
+ await card.getByRole('button',{name:'Marcar como lista →'}).click();await expect(card).toContainText('Lista');await card.getByRole('button',{name:'Registrar entrega y cobro →'}).click();await submit(page,'Confirmar entrega y cobro');
+ await expect(page.locator('#tablaCerradas')).toContainText(name);
+});

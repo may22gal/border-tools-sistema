@@ -44,12 +44,19 @@ final class App {
         if(!$this->p->page('finanzas')&&!$this->p->page('caja')&&!$this->p->page('reportes')&&!$this->p->page('sucursales'))$s['egresos']=array_values(array_filter($s['egresos'],fn($e)=>$this->p->page(Finance::group($e))));
         // Audit payloads are not included in activity summaries.
 
-        $s['activity']=[];$q=$this->db->prepare('SELECT action,branch_name,created_at FROM change_log WHERE user_id=? OR ?=1 ORDER BY seq DESC LIMIT 60');$q->execute([$this->p->user['id'],$this->p->user['role']==='direccion'&&count($this->p->branches)===2?1:0]);foreach($q as $a)$s['activity'][]=['texto'=>$a['action'],'suc'=>$a['branch_name'],'ts'=>$a['created_at']];
+        $s['activity']=[];$q=$this->db->prepare('SELECT action,branch_name,created_at FROM change_log WHERE user_id=? OR ?=1 ORDER BY seq DESC LIMIT 60');$q->execute([$this->p->user['id'],$this->p->user['role']==='direccion'&&count($this->p->branches)===2?1:0]);foreach($q as $a)$s['activity'][]=['texto'=>$a['action'],'suc'=>$a['branch_name']==='Granjero'?'g':($a['branch_name']==='Troncoso'?'t':'sys'),'ts'=>$a['created_at']];
         $s['notifications']=[];
         if($this->p->user['role']==='direccion'){
             $q=$this->db->prepare('SELECT n.id,n.texto,n.orden,n.created_at AS ts,u.display_name AS `by`,(r.user_id IS NOT NULL) AS `read` FROM notifications n JOIN users u ON u.id=n.user_id LEFT JOIN notification_reads r ON r.notification_id=n.id AND r.user_id=? ORDER BY n.created_at DESC LIMIT 50');$q->execute([$this->p->user['id']]);$s['notifications']=$q->fetchAll();
         }
-        return ['settingsVersion'=>(int)$this->db->query('SELECT version FROM app_settings WHERE id=1')->fetchColumn(),'state'=>$s,'user'=>$this->p->user,'branches'=>$this->p->branches,'revision'=>(int)$this->db->query('SELECT COALESCE(MAX(seq),0) FROM change_log')->fetchColumn()];
+        return ['permissions'=>array_values(array_filter(Policy::PAGES['direccion'],fn($page)=>$this->p->page($page))),'settingsVersion'=>(int)$this->db->query('SELECT version FROM app_settings WHERE id=1')->fetchColumn(),'state'=>$s,'user'=>$this->p->user,'branches'=>$this->p->branches,'revision'=>(int)$this->db->query('SELECT COALESCE(MAX(seq),0) FROM change_log')->fetchColumn()];
+    }
+    public function receipt(string $key): array {
+        requireThat((bool)preg_match('/^[a-zA-Z0-9_-]{16,100}$/D',$key),'Invalid receipt');
+        $this->db->beginTransaction();
+        try{$this->db->query('SELECT id FROM write_mutex WHERE id=1 FOR UPDATE');
+            $q=$this->db->prepare('SELECT 1 FROM requests WHERE user_id=? AND request_key=?');$q->execute([$this->p->user['id'],$key]);$confirmed=(bool)$q->fetchColumn();$this->db->commit();return ['confirmed'=>$confirmed];
+        }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
     }
     public function report(array $period,?string $branch): array {
         requireThat($this->p->page('finanzas')||$this->p->page('reportes')||$this->p->page('sucursales'),'Financial report denied',403);
@@ -194,7 +201,7 @@ final class App {
                 foreach($items as $it){$this->required($it,['descripcion','monto']);requireThat(is_string($it['descripcion'])&&strlen($it['descripcion'])<=2000,'Invalid item');$m=Money::cents($it['monto']);requireThat($m>=0,'Negative item');$sum+=$m;}
                 requireThat($sum>0,'Quotation must be positive');$v=['reparacionBruta'=>Money::decimal($sum),'cotizacion'=>Money::decimal($sum),'estado'=>'Cotizada','autorizado'=>false];
                 $q=$this->db->prepare('DELETE FROM service_items WHERE service_id=?');$q->execute([$x['id']]);$q=$this->db->prepare('INSERT INTO service_items(id,service_id,position,descripcion,monto) VALUES (?,?,?,?,?)');foreach($items as $i=>$it)$q->execute([uuid(),$x['id'],$i,$it['descripcion'],Money::decimal(Money::cents($it['monto']))]);
-                $text=$op==='editQuote'?'Cotización modificada; requiere autorización':'Cotización enviada';
+                $text=($op==='editQuote'?'Cotización modificada; requiere autorización':'Cotización enviada').' · '.implode('; ',array_map(fn($item)=>$item['descripcion'].' '.$item['monto'],$items));
                 // Full item revision is included in the immutable audit, not discarded on replace.
                 $this->audit('service.quotationItems','servicio',$x,['id'=>$x['id'],'sucursal'=>$x['sucursal'],'items'=>$items]);
                 if($op==='editQuote'&&$this->p->user['role']!=='direccion'){$q=$this->db->prepare('INSERT INTO notifications(id,user_id,texto,orden) VALUES (?,?,?,?)');$q->execute([uuid(),$this->p->user['id'],'Cotización modificada '.$x['folio'],$x['folio']]);}break;
@@ -222,7 +229,7 @@ final class App {
         return $this->edit('saldos',$x,['archived'=>true],$d['version'],'balance.remove');
     }
     private function balance(array $d): array {
-        $this->p->action('balance');$this->p->demand('finanzas');$this->required($d,['cuenta','tipo','sucursal','fecha','saldo']);$v=$this->pick($d,['cuenta','tipo','sucursal','fecha','saldo']);return isset($d['id'])?$this->edit('saldos',$this->old('saldos',$d),$v,$d['version'],'balance.save'):$this->add('saldos',$v,'balance.save');
+        $this->p->action('balance');$this->p->demand('finanzas');$this->required($d,['cuenta','tipo','sucursal','fecha','saldo']);if(!isset($d['id'])){$q=$this->db->prepare('SELECT id,_version FROM saldos WHERE cuenta=? AND archived=1');$q->execute([$d['cuenta']]);if($archived=$q->fetch()){$d['id']=$archived['id'];$d['version']=(int)$archived['_version'];$d['archived']=false;}}$v=$this->pick($d,['cuenta','tipo','sucursal','fecha','saldo','archived']);return isset($d['id'])?$this->edit('saldos',$this->old('saldos',$d),$v,$d['version'],'balance.save'):$this->add('saldos',$v,'balance.save');
     }
     private function catalog(array $d): array {
         $t=$d['entity']??'';$maps=[

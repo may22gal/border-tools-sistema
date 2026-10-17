@@ -1,0 +1,33 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: 'yes'
+      MYSQL_DATABASE: bt_demo
+      MYSQL_USER: bt_demo
+      MYSQL_PASSWORD: ${BT_DEMO_DB_PASSWORD:?Run start-demo.sh first}
+    volumes:
+      - demo-db:/var/lib/mysql
+    healthcheck:
+      test: [CMD-SHELL, 'mysqladmin ping -h localhost --silent']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  app:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile
+    ports: ['127.0.0.1:8080:8080']
+    environment:
+      BT_DEMO: '1'
+      BT_TEST_USER: bt_demo
+      BT_TEST_PASSWORD: ${BT_DEMO_DB_PASSWORD}
+      BT_ORIGIN: http://localhost:8080
+    volumes:
+      - demo-private:/private-demo
+    depends_on:
+      mysql:
+        condition: service_healthy
+volumes:
+  demo-db:
+  demo-private:

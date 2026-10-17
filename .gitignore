@@ -3,3 +3,7 @@
 /backend/tests/generated/
 *.log
 .env
+/demo/.private/
+/playwright-report/
+/test-results/
+/node_modules/
