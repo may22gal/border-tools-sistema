@@ -17,5 +17,7 @@ $html=str_replace('onchange="S.config.diagnosticoEstandar=Number(this.value)||25
 // URI values embedded in legacy inline handlers must escape apostrophes too.
 $html=str_replace('encodeURIComponent(msg)',"encodeURIComponent(msg).replace(/'/g,'%27')",$html);
 $html=str_replace('encodeURIComponent(x.nombre)',"encodeURIComponent(x.nombre).replace(/'/g,'%27')",$html);
-$html=str_replace('</body>','<script src="assets/connected.js"></script></body>',$html);
+$end=strrpos($html,'</body>');
+if($end===false){http_response_code(503);exit('Documento no válido');}
+$html=substr_replace($html,'<script src="assets/connected.js"></script></body>',$end,strlen('</body>'));
 echo $html;

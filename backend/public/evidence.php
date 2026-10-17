@@ -6,7 +6,7 @@ header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');
 $target=null;
 try{
     $path=getenv('BT_CONFIG_FILE');BT\requireThat($path&&is_file($path),'Configuration unavailable',503);$config=require $path;$db=DB::connect($config);$auth=new Auth($db,$config);$auth->session();$p=$auth->policy();
-    BT\requireThat($p->page('ventas')||$p->page('ventas_admin')||$p->page('credito')||$p->page('reportes'),'Evidence denied',403);
+    BT\requireThat($p->page('ventas')||$p->page('ventas_admin')||$p->page('reportes'),'Evidence denied',403);
     $storage=realpath($config['storage']);$doc=realpath($_SERVER['DOCUMENT_ROOT']??__DIR__);BT\requireThat($storage&&$doc&&!str_starts_with($storage.DIRECTORY_SEPARATOR,$doc.DIRECTORY_SEPARATOR),'Private storage must be outside webroot',503);
     if($_SERVER['REQUEST_METHOD']==='GET'){
         $q=$db->prepare('SELECT e.* FROM evidence e JOIN ventas v ON v.evidenciaId=e.id WHERE e.id=? LIMIT 1');$q->execute([$_GET['id']??'']);$e=$q->fetch();BT\requireThat((bool)$e,'Evidence not found',404);$p->branch($e['branch_name']);$file=$storage.'/'.$e['storage_name'];BT\requireThat(is_file($file)&&hash_equals($e['sha256'],hash_file('sha256',$file)),'Evidence integrity check failed',503);

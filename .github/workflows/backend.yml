@@ -77,6 +77,10 @@ jobs:
           php demo/seed.php
           BT_CONFIG_FILE="$PWD/demo/.private/config.php" php -S 127.0.0.1:8080 -t backend/public backend/public/router.php > /tmp/bt-demo-php.log 2>&1 &
           for i in $(seq 1 30); do curl --silent http://localhost:8080/app.php >/dev/null && break; sleep 1; done
+      - name: Verify generated HTML before browser tests
+        run: |
+          curl --fail --silent http://localhost:8080/app.php > /tmp/bt-rendered.html
+          node backend/tests/render.mjs /tmp/bt-rendered.html
       - name: Install browser test dependencies
         run: |
           npm install --ignore-scripts --no-audit --no-fund

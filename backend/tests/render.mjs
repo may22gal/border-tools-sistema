@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const html=fs.readFileSync(process.argv[2],'utf8');
+assert.equal((html.match(/src="assets\/connected.js"/g)||[]).length,1,'Adapter must be inserted once, never inside print templates');
+const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(x=>x[1]).filter(x=>x.trim());
+assert.equal(scripts.length,1,'Original inline script intact');
+new vm.Script(scripts[0]+'\n'+fs.readFileSync('backend/public/assets/connected.js','utf8'));
+assert(!scripts[0].includes('let S=loadState();'),'No local business-state bootstrap');
+assert(scripts[0].includes('BTSettings({requireTransferApproval:this.checked})'),'Settings handler connected');
+assert(scripts[0].includes('BTSettings({diagnosticoEstandar:this.value})'),'Diagnostic setting connected');
+console.log('PASS rendered original script, single adapter, settings and server-only state bootstrap');

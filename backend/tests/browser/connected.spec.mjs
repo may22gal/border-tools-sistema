@@ -3,7 +3,7 @@ import fs from 'node:fs';
 test.beforeEach(async({page})=>{page.on('dialog',d=>d.accept());});
 const credentials=()=>JSON.parse(fs.readFileSync('demo/.private/credentials.json','utf8'));
 async function login(page,role='direccion'){
-  await page.goto('/app.php');await page.waitForFunction(()=>window.BT===undefined?typeof BT!=='undefined'&&BT.csrf:BT.csrf);
+  await page.goto('/app.php');await page.waitForFunction(()=>typeof BT!=='undefined'&&BT.csrf,null,{timeout:10000});
   const c=credentials()[role];await page.locator('#username').fill(c.username);await page.locator('#login input[type=password]').fill(c.password);await page.locator('#btnEntrar').click();await expect(page.locator('#app')).not.toHaveClass(/hidden/);
 }
 async function navigate(page,name){
@@ -76,6 +76,7 @@ test('remaining catalog forms persist using existing fields',async({page},info)=
  ['clientes','+ Cliente',{b_nombre:'Empresa '+tag,b_contacto:'Prueba',b_credito:'200'}]
  ];
  for(const [name,button,fields] of cases){await navigate(page,name);await page.getByRole('button',{name:button,exact:true}).click();for(const [id,value] of Object.entries(fields))await page.locator('#'+id).fill(value);await submit(page);}
+ await navigate(page,'inventario');await page.getByRole('button',{name:'+ Movimiento',exact:true}).click();await page.locator('#i_prod').fill('Producto '+tag);await page.locator('#i_sku').fill('SKU-'+tag);await page.locator('#i_cant').fill('1');await submit(page);
  await navigate(page,'nomina');await page.getByRole('button',{name:'+ Dar de alta empleado',exact:true}).click();await page.locator('#n_nombre').fill('Empleado '+tag);await page.locator('#n_sueldo').fill('100.00');await submit(page,'Guardar empleado');
  await navigate(page,'comisiones');await page.getByRole('button',{name:'+ Registrar comisión',exact:true}).click();await page.locator('#cm_periodo').fill(tag);await page.locator('#cm_monto').fill('25.00');await submit(page,'Guardar comisión');
  await page.reload();await expect(page.locator('#app')).not.toHaveClass(/hidden/);expect(await page.evaluate(t=>S.facturacion.some(x=>x.cliente==='Cliente '+t)&&S.ml.some(x=>x.producto==='Publicación '+t)&&S.nomina.some(x=>x.nombre==='Empleado '+t),tag)).toBe(true);
@@ -119,4 +120,9 @@ test('financial corrections, history and approval shared with Direction',async({
 });
 test('settings controls write only on server confirmation and restore original flag',async({page})=>{
  await login(page);await navigate(page,'permisos');const checkbox=page.locator('#chkTransfer');const initial=await checkbox.isChecked();await checkbox.setChecked(!initial);await page.waitForFunction(()=>!BT.busy);await page.reload();await expect(page.locator('#app')).not.toHaveClass(/hidden/);await navigate(page,'permisos');await expect(page.locator('#chkTransfer')).toBeChecked({checked:!initial});await page.locator('#chkTransfer').setChecked(initial);await page.waitForFunction(()=>!BT.busy);
+});
+
+test('private files and demo configuration are not web-accessible',async({page})=>{
+ for(const path of ['/backend/config.php','/../src/Core.php','/demo/.private/credentials.json','/.htaccess','/src/entities.json']){const response=await page.request.get(path);expect([400,403,404]).toContain(response.status());}
+ await login(page,'facturacion');const result=await page.request.get('/evidence.php?id=unavailable');expect(result.status()).toBe(403);
 });
