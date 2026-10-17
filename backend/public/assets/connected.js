@@ -44,7 +44,7 @@ const BT = {
     for(const key of ARRAY_KEYS){packet.state[key]??=[];for(const row of packet.state[key]){
       for(const [field,value] of Object.entries(row)){if(numeric.has(field)&&!(field==='entrada'&&key==='servicio')&&value!==null&&value!=='')row[field]=Number(value);if(bools.has(field))row[field]=value===true||value===1||value==='1';}
       if(key==='servicio'){row.entrada=row.entrada||'';row.entrega=row.entrega||'';row.historial??=[];for(const item of row.cotItems||[])item.monto=Number(item.monto);}
-      if(row.ts)row.ts=this.stampUTC(row.ts);if(row.historial)for(const item of row.historial)if(item.ts)item.ts=this.stampUTC(item.ts);if(row.historialCambios)for(const item of row.historialCambios)if(item.fecha)item.fecha=this.stampUTC(item.fecha);
+      if(row.ts)row.ts=this.stampUTC(row.ts);if(row.historial)for(const item of row.historial)if(item.ts)item.ts=this.stampUTC(item.ts);if(row.historialCambios)for(const item of row.historialCambios){if(item.fecha)item.fecha=this.stampUTC(item.fecha);for(const side of ['anterior','nuevo']){if(item.accion!=='Corrección de egreso'){item[side]=null;continue;}const fields=new Set(['fecha','sucursal','concepto','proveedor','categoria','monto','metodo','pagoAplazado','impactaCajaFisica','cajaSucursal']);item[side]=Object.fromEntries(Object.entries(item[side]||{}).filter(([k])=>fields.has(k)).map(([k,v])=>[k,numeric.has(k)?Number(v):bools.has(k)?v===true||v===1||v==='1':v]));}}
       if(key==='nomina')row.ultimoPago||='—';if(key==='comisiones')row.fechaPago||='—';if(key==='compras')row.entrega||='—';
     }}
     return packet;
