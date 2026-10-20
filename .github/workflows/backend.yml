@@ -85,7 +85,7 @@ jobs:
           unzip -q "$BT_PACKAGE_TEST_DIR/public.zip" -d "$BT_STAGE_HOME/public_html/bt-admin-public"
           chmod -R go-rwx "$BT_STAGE_HOME/bt-admin-private"
           find "$BT_STAGE_HOME" -name '*.php' -print0 | xargs -0 -n1 php -l
-          php -S 127.0.0.1:8080 -t "$BT_STAGE_HOME/public_html/bt-admin-public" > /tmp/bt-demo-php.log 2>&1 &
+          php -S 127.0.0.1:8080 -t "$BT_STAGE_HOME/public_html/bt-admin-public" backend/public/router.php > /tmp/bt-demo-php.log 2>&1 &
           for i in $(seq 1 30); do test "$(curl --silent --output /tmp/bt-unconfigured.txt --write-out '%{http_code}' http://localhost:8080/app.php)" = 503 && break; sleep 1; done
           test "$(curl --silent --output /tmp/bt-unconfigured.txt --write-out '%{http_code}' http://localhost:8080/app.php)" = 503
           cp demo/.private/config.php "$BT_STAGE_HOME/bt-admin-private/config.php"
