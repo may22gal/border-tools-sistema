@@ -7,3 +7,5 @@
 /playwright-report/
 /test-results/
 /node_modules/
+__pycache__/
+/dist/

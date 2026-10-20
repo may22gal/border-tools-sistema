@@ -60,6 +60,9 @@ jobs:
       BT_TEST_USER: root
       BT_DEMO: '1'
       BT_ORIGIN: http://localhost:8080
+      BT_STAGE_HOME: ${{ runner.temp }}/bt-cpanel-host
+      BT_PACKAGE_TEST_DIR: ${{ runner.temp }}/bt-cpanel-test
+      BT_PACKAGE_DIR: ${{ runner.temp }}/bt-cpanel-review
     steps:
       - uses: actions/checkout@v4
       - name: PHP 8.4
@@ -75,7 +78,18 @@ jobs:
       - name: Prepare connected synthetic demo
         run: |
           php demo/seed.php
-          BT_CONFIG_FILE="$PWD/demo/.private/config.php" php -S 127.0.0.1:8080 -t backend/public backend/public/router.php > /tmp/bt-demo-php.log 2>&1 &
+          python3 tools/build_cpanel_package.py --source-commit "$GITHUB_SHA" --home "$BT_STAGE_HOME" --output "$BT_PACKAGE_TEST_DIR"
+          python3 tools/build_cpanel_package.py --source-commit "$GITHUB_SHA" --output "$BT_PACKAGE_DIR"
+          mkdir -p "$BT_STAGE_HOME/public_html/bt-admin-public"
+          unzip -q "$BT_PACKAGE_TEST_DIR/private.zip" -d "$BT_STAGE_HOME"
+          unzip -q "$BT_PACKAGE_TEST_DIR/public.zip" -d "$BT_STAGE_HOME/public_html/bt-admin-public"
+          chmod -R go-rwx "$BT_STAGE_HOME/bt-admin-private"
+          find "$BT_STAGE_HOME" -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -S 127.0.0.1:8080 -t "$BT_STAGE_HOME/public_html/bt-admin-public" > /tmp/bt-demo-php.log 2>&1 &
+          for i in $(seq 1 30); do test "$(curl --silent --output /tmp/bt-unconfigured.txt --write-out '%{http_code}' http://localhost:8080/app.php)" = 503 && break; sleep 1; done
+          test "$(curl --silent --output /tmp/bt-unconfigured.txt --write-out '%{http_code}' http://localhost:8080/app.php)" = 503
+          cp demo/.private/config.php "$BT_STAGE_HOME/bt-admin-private/config.php"
+          chmod 600 "$BT_STAGE_HOME/bt-admin-private/config.php"
           for i in $(seq 1 30); do curl --silent http://localhost:8080/app.php >/dev/null && break; sleep 1; done
       - name: Verify generated HTML before browser tests
         run: |
@@ -94,6 +108,12 @@ jobs:
         with:
           name: border-tools-connected-demo
           path: /tmp/border-tools-connected-demo.zip
+          retention-days: 14
+      - name: Save reviewed cPanel installation package
+        uses: actions/upload-artifact@v4
+        with:
+          name: border-tools-cpanel-review-only
+          path: ${{ env.BT_PACKAGE_DIR }}/
           retention-days: 14
       - name: Save visual proof and test report
         if: always()
