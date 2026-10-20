@@ -60,9 +60,6 @@ jobs:
       BT_TEST_USER: root
       BT_DEMO: '1'
       BT_ORIGIN: http://localhost:8080
-      BT_STAGE_HOME: ${{ runner.temp }}/bt-cpanel-host
-      BT_PACKAGE_TEST_DIR: ${{ runner.temp }}/bt-cpanel-test
-      BT_PACKAGE_DIR: ${{ runner.temp }}/bt-cpanel-review
     steps:
       - uses: actions/checkout@v4
       - name: PHP 8.4
@@ -77,6 +74,9 @@ jobs:
           node --check backend/public/assets/connected.js
       - name: Prepare connected synthetic demo
         run: |
+          BT_STAGE_HOME="$RUNNER_TEMP/bt-cpanel-host"
+          BT_PACKAGE_TEST_DIR="$RUNNER_TEMP/bt-cpanel-test"
+          BT_PACKAGE_DIR="$RUNNER_TEMP/bt-cpanel-review"
           php demo/seed.php
           python3 tools/build_cpanel_package.py --source-commit "$GITHUB_SHA" --home "$BT_STAGE_HOME" --output "$BT_PACKAGE_TEST_DIR"
           python3 tools/build_cpanel_package.py --source-commit "$GITHUB_SHA" --output "$BT_PACKAGE_DIR"
@@ -113,7 +113,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: border-tools-cpanel-review-only
-          path: ${{ env.BT_PACKAGE_DIR }}/
+          path: ${{ runner.temp }}/bt-cpanel-review/
           retention-days: 14
       - name: Save visual proof and test report
         if: always()
