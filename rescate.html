@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Border Tools | Rescate de datos de este navegador</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#17334a;background:#edf3f8}
+*{box-sizing:border-box}body{margin:0;padding:26px 14px}.wrap{max-width:740px;margin:auto}
+header{background:#0e304e;color:#fff;border-radius:17px;padding:23px 24px}
+h1{font-size:24px;margin:7px 0 6px}header p{color:#d8e8f3;margin:0;line-height:1.55}
+.card{background:#fff;border:1px solid #dae2ea;border-radius:15px;margin-top:15px;padding:19px 22px;box-shadow:0 4px 14px #13345008}
+h2{font-size:16px;margin:0 0 10px}p,li{font-size:14px;line-height:1.6}
+.warning{background:#fff6e7;border-left:4px solid #d08a13;padding:12px 15px;border-radius:9px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:11px;background:#f4f7fa;border-radius:8px;font-size:12px}
+label{font-weight:700;display:block;font-size:13px;margin:15px 0 6px}
+input{width:100%;border:1px solid #b9c8d6;border-radius:9px;padding:11px;font-size:15px}
+button{border:0;border-radius:9px;background:#1374ae;color:white;padding:13px 20px;font-weight:700;cursor:pointer;font-size:15px;margin-top:12px}
+button[disabled]{opacity:.5;cursor:wait}.muted{color:#536879;font-size:12px}
+#status{font-weight:650;margin-top:13px}a{color:#1474ad}
+</style>
+</head>
+<body>
+<main class="wrap">
+<header><div style="font-size:12px;letter-spacing:.12em">BORDER TOOLS · RECUPERACIÓN</div>
+<h1>Rescatar información de este navegador</h1>
+<p>Esta página sirve para descargar una copia de los datos capturados en esta computadora, sin modificarlos ni subirlos a Internet.</p></header>
+<section class="card">
+<h2>Antes de comenzar</h2>
+<p class="warning"><strong>IMPORTANTE:</strong> abre esta página en el <strong>mismo navegador, perfil y dirección web</strong> donde esa persona utilizó el sistema. Si capturó desde Chrome y ahora abre Edge, aquí no aparecerán sus datos.</p>
+<p><strong>Dirección que estás revisando:</strong> <span id="origin"></span></p>
+<p class="muted">No utilices modo incógnito. No borres historial ni datos del sitio. No pulses «Restablecer datos de ejemplo».</p>
+</section>
+<section class="card">
+<h2>Información encontrada</h2>
+<div id="summary" aria-live="polite">Buscando...</div>
+<p class="muted">Los registros pueden incluir información de ejemplo. Este conteo no verifica que sean registros reales ni que estén completos.</p>
+</section>
+<section class="card">
+<h2>Descargar una copia completa</h2>
+<p>Incluye el almacenamiento local del sitio y los PDF que todavía existan en la base local SICAR de este navegador. El archivo se guarda en <strong>tu computadora</strong>. Esta página no envía información a ningún servidor.</p>
+<label for="device">Identificador de la computadora y persona</label>
+<input id="device" maxlength="60" placeholder="Ejemplo: Pamela PC Granjero" autocomplete="off">
+<button id="download" type="button">Descargar respaldo de este navegador</button>
+<p id="status" role="status"></p>
+<p class="muted">El archivo contiene datos confidenciales. Guárdalo en una carpeta privada y conserva el original intacto. No lo envíes por WhatsApp ni a un repositorio público.</p>
+</section>
+<section class="card">
+<h2>Después de descargar</h2>
+<ol>
+<li>Verifica que el archivo JSON se haya descargado y que no tenga tamaño 0 KB.</li>
+<li>Guárdalo en una carpeta restringida, separado del archivo de las demás computadoras.</li>
+<li>Repite el procedimiento en cada navegador o perfil que se haya usado para capturar.</li>
+<li>No importes todavía un respaldo sobre otro. Primero debemos compararlos y consolidarlos.</li>
+</ol>
+<p class="muted">Herramienta de exportación de emergencia, versión 1. No crea copias automáticas ni sincroniza diferentes computadoras.</p>
+</section>
+</main>
+<script>
+(function(){
+'use strict';
+var KEY='bt_control_v23', DB='bt_evidencias_sicar';
+var summary=document.getElementById('summary'),status=document.getElementById('status'),button=document.getElementById('download');
+document.getElementById('origin').textContent=location.origin;
+function store(){
+ var o={};
+ for(var i=0;i<localStorage.length;i++){
+  var k=localStorage.key(i);if(k!==null)o[k]=localStorage.getItem(k);
+ }
+ return o;
+}
+function count(s){
+ var n=0,parts={};
+ try{var state=JSON.parse(s[KEY]||'null');
+  if(state&&typeof state==='object'){
+   ['ventas','servicio','egresos','nomina','comisiones','compras','clientesB2B','creditos','cobranzas','inventario','ml','facturacion','cajaMovimientos'].forEach(function(k){
+    if(Array.isArray(state[k])){parts[k]=state[k].length;n+=state[k].length;}
+   });
+  }
+ }catch(e){}
+ return {records:n,byModule:parts};
+}
+async function pdfs(){
+ if(!window.indexedDB)return {items:[],warning:'IndexedDB no está disponible; no es posible recuperar PDF aquí.'};
+ if(typeof indexedDB.databases==='function'){
+  try{
+   var dbs=await indexedDB.databases();
+   if(!dbs.some(function(d){return d.name===DB;}))return {items:[],warning:'No existe la base local de PDF SICAR en este navegador.'};
+  }catch(e){}
+ }
+ var db,absent=false;
+ try{
+  try{db=await new Promise(function(resolve,reject){
+   var req=indexedDB.open(DB);
+   req.onupgradeneeded=function(){absent=true;req.transaction.abort();};
+   req.onsuccess=function(){resolve(req.result);};
+   req.onerror=function(){reject(req.error||new Error('No se pudo abrir IndexedDB'));};
+  });}catch(e){if(absent)return {items:[],warning:'No existe la base local de PDF SICAR en este navegador.'};throw e;}
+  if(!db.objectStoreNames.contains('pdf'))return {items:[],warning:'No existe el almacén PDF esperado.'};
+  var values=await new Promise(function(resolve,reject){
+   var items=[],tx=db.transaction('pdf','readonly'),req=tx.objectStore('pdf').openCursor();
+   req.onsuccess=function(){var c=req.result;if(c){items.push({id:String(c.key),data:c.value});c.continue();}};
+   tx.oncomplete=function(){resolve(items);};
+   tx.onerror=function(){reject(tx.error||new Error('Error al leer PDFs'));};
+   tx.onabort=function(){reject(tx.error||new Error('Lectura de PDFs cancelada'));};
+  });
+  var out=[];
+  for(var i=0;i<values.length;i++){
+   var v=values[i],blob;
+   if(v.data instanceof Blob)blob=v.data;
+   else if(v.data instanceof ArrayBuffer)blob=new Blob([v.data],{type:'application/pdf'});
+   else if(ArrayBuffer.isView(v.data))blob=new Blob([v.data],{type:'application/pdf'});
+   else throw new Error('El PDF '+v.id+' utiliza un formato no compatible. No se descargó un respaldo incompleto.');
+   var dataURL=await new Promise(function(resolve,reject){
+    var fr=new FileReader();fr.onload=function(){resolve(fr.result);};fr.onerror=function(){reject(fr.error);};fr.readAsDataURL(blob);
+   });
+   out.push({id:v.id,type:blob.type||'application/pdf',bytes:blob.size,dataURL:dataURL});
+  }
+  return {items:out,warning:null};
+ }finally{if(db)db.close();}
+}
+async function inspect(){
+ try{
+  var s=store(),c=count(s);
+  summary.innerHTML='';
+  var p=document.createElement('p');
+  p.textContent='Claves locales: '+Object.keys(s).length+'. Registros en la versión actual: '+c.records+'.';
+  summary.appendChild(p);
+  var p2=document.createElement('p');p2.className='muted';
+  p2.textContent=s[KEY]?'Encontramos datos bajo '+KEY+'.':'No encontramos datos bajo '+KEY+'. Puede ser otro perfil, navegador, dirección web o una versión anterior.';
+  summary.appendChild(p2);
+  var p3=document.createElement('p');p3.className='muted';p3.textContent='Contenido por módulo: '+(Object.keys(c.byModule).map(function(k){return k+': '+c.byModule[k];}).join(' · ')||'No identificado');
+  summary.appendChild(p3);
+ }catch(e){summary.textContent='No se pudo consultar el almacenamiento: '+e.message;}
+}
+button.onclick=async function(){
+ button.disabled=true;status.textContent='Preparando la copia. No cierres esta pestaña.';
+ try{
+  var label=document.getElementById('device').value.trim();
+  if(!label)throw new Error('Escribe primero el identificador de la computadora y persona.');
+  var s=store(),result=await pdfs();
+  var payload={
+   format:'border-tools-local-rescue-v1',
+   exportedAt:new Date().toISOString(),
+   sourceOrigin:location.origin,
+   sourcePath:location.pathname,
+   sourceLabel:label,
+   localStorage:s,
+   counts:count(s),
+   pdfCount:result.items.length,
+   pdfWarning:result.warning,
+   pdfs:result.items
+  };
+  var json=JSON.stringify(payload);
+  var filename='BorderTools-RESCATE-'+label.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,40)+'-'+new Date().toISOString().slice(0,10)+'.json';
+  var url=URL.createObjectURL(new Blob([json],{type:'application/json;charset=utf-8'}));
+  var a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(url);},60000);
+  status.textContent='Descarga solicitada: '+filename+' · '+result.items.length+' PDF incluidos. '+(result.warning||'');
+ }catch(e){status.textContent='No se completó el respaldo: '+(e&&e.message?e.message:String(e));}
+ finally{button.disabled=false;inspect();}
+};
+inspect();
+})();
+</script>
+</body>
+</html>
