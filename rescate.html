@@ -88,14 +88,14 @@ async function pdfs(){
    if(!dbs.some(function(d){return d.name===DB;}))return {items:[],warning:'No existe la base local de PDF SICAR en este navegador.'};
   }catch(e){}
  }
- var db;
+ var db,absent=false;
  try{
-  db=await new Promise(function(resolve,reject){
+  try{db=await new Promise(function(resolve,reject){
    var req=indexedDB.open(DB);
-   req.onupgradeneeded=function(){req.transaction.abort();};
+   req.onupgradeneeded=function(){absent=true;req.transaction.abort();};
    req.onsuccess=function(){resolve(req.result);};
    req.onerror=function(){reject(req.error||new Error('No se pudo abrir IndexedDB'));};
-  });
+  });}catch(e){if(absent)return {items:[],warning:'No existe la base local de PDF SICAR en este navegador.'};throw e;}
   if(!db.objectStoreNames.contains('pdf'))return {items:[],warning:'No existe el almacén PDF esperado.'};
   var values=await new Promise(function(resolve,reject){
    var items=[],tx=db.transaction('pdf','readonly'),req=tx.objectStore('pdf').openCursor();
