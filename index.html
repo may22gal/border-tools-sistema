@@ -1269,7 +1269,7 @@ function ordenCard(x,i){
     ${x.notas?`<div class="orden-diag" style="margin-top:4px;color:var(--amber)"><b>Nota:</b> ${h(x.notas)}</div>`:''}
     <div class="timeline">${x.historial.slice(-3).map(e=>`<div class="tl-item"><span class="tl-dot"></span><div>${h(e.texto)}<small>${h(e.ts)}</small></div></div>`).join('')}</div>
     <div class="orden-footer"><div class="orden-monto">${svBruta(x)?moneyC(svTotalCobrar(x)):'Sin cotizar'}<small>${svBruta(x)?`Reparación ${moneyC(svBruta(x))}${svDiag(x)?` − diagnóstico ${moneyC(svDiag(x))}`:''}`:'—'}</small></div>
-      <div class="orden-actions">${next?`<button class="btn-advance" onclick="avanzar(${i})">${next} →</button>`:''}${(x.estado==='Cotizada'||x.estado==='Autorizada')?`<button class="secondary" onclick="editarCotizacion(${i})">✎ Editar cotización</button>`:''}${x.estado==='Cotizada'?`<button class="secondary" onclick="whatsappCotizacion(${i})">💬 WhatsApp</button>`:''}${puedeCobrarDiag?`<button class="secondary" onclick="openCobroDiag(${i})">Cobrar diagnóstico</button>`:''}<button class="secondary" onclick="imprimirEtiqueta(${i})">🏷 Etiqueta</button><button class="secondary" onclick="verOrden(${i})">Detalle</button></div></div>
+      <div class="orden-actions">${next?`<button class="btn-advance" onclick="avanzar(${i})">${next} →</button>`:''}${(x.estado==='Cotizada'||x.estado==='Autorizada')?`<button class="secondary" onclick="editarCotizacion(${i})">✎ Editar cotización</button>`:''}${x.estado==='Cotizada'?`<button class="secondary" onclick="whatsappCotizacion(${i})">💬 WhatsApp</button>`:''}${puedeCobrarDiag?`<button class="secondary" onclick="openCobroDiag(${i})">Cobrar diagnóstico</button>`:''}<button class="secondary" onclick="prepararComprobantesServicio(${i})">🖨 Recibo y etiqueta</button><button class="secondary" onclick="verOrden(${i})">Detalle</button></div></div>
   </div>`;
 }
 function camposCobroDiag(prefix,monto){return `<div class="field"><label>Monto del diagnóstico</label><input id="${prefix}_monto" type="number" step="0.01" value="${monto}"></div><div class="field"><label>Fecha de cobro</label><input id="${prefix}_fecha" type="date" value="${todayBiz()}"></div><div class="field"><label>Forma de pago</label><select id="${prefix}_metodo">${METODOS.map(m=>`<option>${m}</option>`).join('')}</select></div><div class="field"><label>Ticket / folio SICAR</label><input id="${prefix}_sicar" placeholder="Opcional"></div>`}
@@ -1367,7 +1367,7 @@ function verOrden(i){
     <div class="field"><label>Modelo</label><input value="${h(x.modelo||'—')}" disabled></div><div class="field"><label>Serie</label><input value="${h(x.serie||'—')}" disabled></div>
     <div class="field"><label>Diagnóstico cobrado</label><input value="${svDiag(x)?r2(svDiag(x))+' · '+h(x.diagnosticoMetodo):'—'}" disabled></div><div class="field"><label>Reparación cobrada</label><input value="${x.estado==='Entregada'?r2(x.cobro)+' · '+h(x.formaPago||''):'—'}" disabled></div>
     <div class="field"><label>Estado</label><input value="${h(x.estado)}" disabled></div><div class="field"><label>Cobro</label><input value="${h(svEstadoCobro(x))}" disabled></div></div>
-    <h3 style="margin:16px 0 10px;font-size:13px">Historial</h3><div class="timeline">${x.historial.map(e=>`<div class="tl-item"><span class="tl-dot"></span><div>${h(e.texto)}<small>${h(e.ts)}</small></div></div>`).join('')}</div>`);
+    <h3 style="margin:16px 0 10px;font-size:13px">Historial</h3><div class="timeline">${x.historial.map(e=>`<div class="tl-item"><span class="tl-dot"></span><div>${h(e.texto)}<small>${h(e.ts)}</small></div></div>`).join('')}</div><div style="margin-top:15px"><button class="primary" onclick="prepararComprobantesServicio(${i})">🖨 Ver recibo y etiqueta</button></div>`);
 }
 function nuevaOrden(){
   const l=lockedSuc();
@@ -2069,5 +2069,6 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='
 aplicarPrefs();
 
 </script>
+<script src="service-print.js"></script>
 </body>
 </html>
