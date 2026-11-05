@@ -1391,11 +1391,6 @@ function saveOrden(){
   x.historial.push({texto:`Recibida en sucursal ${x.sucursal}`,ts:stamp()});
   S.servicio.unshift(x);logAct(`${x.folio} recibida · ${x.herramienta} · ${x.cliente}`,'sv');save();closeModal();toast(`Orden ${x.folio} registrada ✓`);render('servicio');
 }
-function imprimirEtiqueta(i){
-  const x=S.servicio[i],w=window.open('','_blank','width=520,height=420');if(!w)return toast('Permite ventanas emergentes para imprimir');
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${h(x.folio)}</title><style>body{font-family:Arial;padding:20px}.label{width:360px;border:2px solid #111;padding:18px}.folio{font-size:32px;font-weight:900}.bt{font-size:14px;font-weight:700;margin-bottom:12px}.tool{font-size:16px;font-weight:700;margin-top:10px}.meta{font-size:12px;margin-top:6px}.code{margin-top:16px;font-family:monospace;font-size:24px;letter-spacing:4px;border-top:1px solid #333;padding-top:12px}</style></head><body><div class="label"><div class="bt">BORDER TOOLS · CENTRO DE SERVICIO</div><div class="folio">${h(x.folio)}</div><div class="tool">${h(x.herramienta)}</div><div class="meta">${h(x.cliente)} · ${h(x.sucursal)}</div><div class="meta">Modelo: ${h(x.modelo||'—')} · Serie: ${h(x.serie||'—')}</div><div class="code">|||| ${h(String(x.folio).replace(/\D/g,''))} ||||</div></div><scr`+`ipt>window.onload=()=>window.print()</scr`+`ipt></body></html>`);
-  w.document.close();
-}
 function servicio_stats(){
   const sv=filterSuc(S.servicio),total=sv.length||1,ing=sv.reduce((a,x)=>a+svIngreso(x),0),pend=sv.filter(x=>svEstadoCobro(x)==='Pendiente');
   return `${head('Estadísticas de servicio','Desempeño del Centro de Servicio. El dinero ya está incluido en los cortes de SICAR.')}${sucTabs()}
