@@ -48,9 +48,9 @@
     const p = read();
     const option = name => '<option value="">Seleccionar impresora</option>' + (name ? '<option selected value="'+esc(name)+'">'+esc(name)+' (guardada, por comprobar)</option>' : '');
     openModal('Impresoras de esta computadora',
-      '<div class="callout">Cada vendedor puede configurar este equipo. La selección se guarda en este navegador, para todos los que lo usen aquí.</div>'
+      '<div class="callout">Configura una sola vez. Después, cada botón enviará el documento a su impresora. Esta configuración es para quienes usan este navegador en esta computadora.</div>'
       + '<div class="field"><label>Cómo imprimir</label><select id="bt-printer-mode"><option value="browser"'+(p.mode==='browser'?' selected':'')+'>Elegir en la ventana del navegador</option><option value="direct"'+(p.mode==='direct'?' selected':'')+'>Enviar a las impresoras asignadas (QZ Tray)</option></select></div>'
-      + '<p>Para el envío directo: instala las dos impresoras en Windows con sus controladores y abre <a href="https://qz.io/download/" target="_blank" rel="noopener noreferrer">QZ Tray</a>. Después pulsa Buscar impresoras y permite la conexión. Puede solicitar confirmación al imprimir; no requiere contratar un certificado para este modo.</p>'
+      + '<p>1. Conecta las dos impresoras y comprueba que aparezcan en Windows.<br>2. Instala y abre <a href="https://qz.io/download/" target="_blank" rel="noopener noreferrer">QZ Tray</a>. 3. Pulsa Buscar impresoras, acepta el permiso, elige cada impresora y guarda. Puede solicitar confirmación al imprimir; no requiere contratar un certificado para este modo.</p>'
       + '<button onclick="btBuscarImpresoras()">Buscar impresoras en Windows</button>'
       + '<div class="form-grid" style="margin-top:12px"><div class="field"><label>Impresora de recibos</label><select id="bt-receipt-printer">'+option(p.receipt)+'</select></div>'
       + '<div class="field"><label>Impresora de etiquetas</label><select id="bt-label-printer">'+option(p.label)+'</select></div></div>'
