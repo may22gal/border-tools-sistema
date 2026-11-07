@@ -1,0 +1,6 @@
+{
+  "name": "border-tools-print-checks",
+  "private": true,
+  "scripts": { "test:print": "node tests/printer-settings.cjs" },
+  "devDependencies": { "playwright": "1.58.2" }
+}
