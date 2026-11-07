@@ -8,7 +8,7 @@ final class App {
         'categoriasGastos'=>['gastos','proveedores','finanzas'], 'ventas'=>['ventas','ventas_admin','mano_obra','credito','finanzas','caja','reportes','sucursales'],
         'facturacion'=>['facturacion'],'inventario'=>['inventario'],'ml'=>['ml'],'oportunidades'=>['oportunidades'],
         'servicio'=>['servicio','servicio_stats','ventas','reportes'],'egresos'=>['gastos','proveedores','nomina','comisiones','finanzas','caja','reportes','sucursales'],
-        'nomina'=>['nomina','comisiones'],'comisiones'=>['comisiones'],'compras'=>['compras'],'clientesB2B'=>['clientes','credito'],
+        'nomina'=>['nomina','comisiones'],'comisiones'=>['comisiones'],'compras'=>['compras','proveedores'],'clientesB2B'=>['clientes','credito'],
         'creditos'=>['credito','finanzas','reportes'],'cobranzas'=>['credito','finanzas','caja','reportes','ventas'],
         'stockMin'=>['inventario'],'cortesCaja'=>['caja','reportes'],'cajaMovimientos'=>['caja','finanzas','reportes'], 'saldos'=>['finanzas']
     ];
@@ -113,7 +113,7 @@ final class App {
             'payroll.pay'=>$this->pay($d),'cash.movement'=>$this->cashMovement($d),'cash.close'=>$this->cashClose($d),
             'service.create'=>$this->serviceCreate($d),'service.transition'=>$this->serviceTransition($d),
             'inventory.move'=>$this->inventory($d),'stock.save'=>$this->stock($d),'balance.save'=>$this->balance($d),'balance.remove'=>$this->removeBalance($d),
-            'catalog.create'=>$this->catalog($d),'purchase.receive'=>$this->receive($d),'category.deactivate'=>$this->deactivate($d),
+            'catalog.create'=>$this->catalog($d),'supplier.invoice'=>$this->supplierInvoice($d),'supplier.pay'=>$this->supplierPay($d),'purchase.receive'=>$this->receive($d),'category.deactivate'=>$this->deactivate($d),
             'settings.update'=>$this->settings($d),'notification.read'=>$this->readNotifications($d),
             default=>throw new Problem(404,'Unknown operation'),
         };
@@ -163,11 +163,11 @@ final class App {
     private function expenseEdit(array $d): array {
         $this->p->action('expense');$x=$this->old('egresos',$d);$this->expensePage($x);
         $q=$this->db->prepare("SELECT state FROM expense_approvals WHERE expense_id=?");$q->execute([$x['id']]);
-        requireThat(!$x['anulado']&&!$x['origenId']&&!$x['origenCargoId']&&$this->settlements($x)===0&&in_array(Finance::group($x),['gastos','proveedores'],true)&&$q->fetchColumn()!=='Pendiente','Expense cannot be edited',409);
+        requireThat(!$x['anulado']&&!$x['origenId']&&!$x['origenCargoId']&&empty($x['compraId'])&&$this->settlements($x)===0&&in_array(Finance::group($x),['gastos','proveedores'],true)&&$q->fetchColumn()!=='Pendiente','Expense cannot be edited',409);
         $v=$this->pick($d,['fecha','sucursal','concepto','categoria','proveedor']);$v['monto']=Money::positive($d['monto']??0);$v+=$this->payment($d);$v['pagoAplazado']=$v['metodo']==='Tarjeta'&&!empty($d['pagoAplazado']);$this->required($v,['fecha','sucursal','concepto','categoria']);if(Finance::group($x)==='proveedores')$this->required($v,['proveedor']);requireThat(!($v['pagoAplazado']&&$v['categoria']==='Pago de tarjeta de crédito'),'Invalid deferred payment');return $this->edit('egresos',$x,$v,$d['version'],'expense.edit');
     }
     private function settle(array $d): array {
-        $this->p->action('expense');$x=$this->old('egresos',$d);$this->expensePage($x);requireThat($x['pagoAplazado']&&!$x['anulado'],'Invalid card charge');$m=Money::cents(Money::positive($d['monto']??0));requireThat($m<=Money::cents($x['monto'])-$this->settlements($x),'Exceeds card balance',409);$this->required($d,['fecha']);
+        $this->p->action('expense');$x=$this->old('egresos',$d);$this->expensePage($x);requireThat($x['pagoAplazado']&&!$x['anulado'],'Invalid card charge');$m=Money::cents(Money::positive($d['monto']??0));requireThat($m<=Money::cents($x['monto'])-$this->settlements($x),'Exceeds card balance',409);$this->required($d,['fecha']);requireThat($d['fecha'] >= $x['fecha'],'Payment predates card charge');requireThat(($d['metodo']??'')!=='Tarjeta','Use bank transfer, cash or cheque to settle card');
         $v=['fecha'=>$d['fecha'],'grupo'=>'gastos','categoria'=>'Pago de tarjeta de crédito','concepto'=>'Liquidación tarjeta · '.$x['concepto'],'proveedor'=>$d['referencia']??$x['proveedor'],'sucursal'=>$x['sucursal'],'monto'=>Money::decimal($m),'origenCargoId'=>$x['id']]+$this->payment($d+['sucursal'=>$x['sucursal']]);
         $n=$this->add('egresos',$v,'expense.settle');$this->edit('egresos',$x,['monto'=>$x['monto']],$d['version'],'expense.settle');return $n;
     }
@@ -273,6 +273,36 @@ final class App {
             $v['activo']=true;$q=$this->db->prepare('SELECT id FROM categoriasGastos WHERE nombre=?');$q->execute([$v['nombre']]);
             if($id=$q->fetchColumn()){$x=$this->r->get('categoriasGastos',$id,true);requireThat(!$x['activo'],'Category already exists',409);return $this->edit('categoriasGastos',$x,$v,(int)$x['_version'],'category.reactivate');}
         }return $this->add($t,$v,'catalog.'.$t.'.create');
+    }
+    private function supplierInvoice(array $d): array {
+        $this->p->action('expense');$this->p->demand('proveedores');
+        $this->required($d,['folio','proveedor','fecha','sucursal','monto']);
+        $v=$this->pick($d,['folio','proveedor','fecha','sucursal','vencimiento']);
+        $v['folio']=trim($v['folio']);$v['proveedor']=trim($v['proveedor']);
+        requireThat(empty($v['vencimiento'])||$v['vencimiento'] >= $v['fecha'],'Due date precedes invoice');
+        $v['monto']=Money::positive($d['monto']);$v['facturaRegistrada']=true;
+        $q=$this->db->prepare('SELECT id FROM compras WHERE facturaRegistrada=1 AND folio=? AND proveedor=? AND sucursal=?');
+        $q->execute([$v['folio'],$v['proveedor'],$v['sucursal']]);requireThat(!$q->fetchColumn(),'Invoice already registered for this supplier and branch',409);
+        if(isset($d['id'])){
+            $x=$this->old('compras',$d);requireThat(!$x['facturaRegistrada'],'Invoice already registered',409);
+            requireThat($x['sucursal']===$v['sucursal'],'Cannot change purchase branch');
+            return $this->edit('compras',$x,$v,$d['version'],'supplier.invoice');
+        }
+        $v['estado']=!empty($d['recibida'])?'Recibida':'En tránsito';
+        $v['entrega']=!empty($d['recibida'])?$v['fecha']:null;
+        return $this->add('compras',$v,'supplier.invoice');
+    }
+    private function supplierPay(array $d): array {
+        $this->p->action('expense');$this->p->demand('proveedores');$x=$this->old('compras',$d);
+        requireThat((bool)$x['facturaRegistrada'],'Register invoice first');$this->required($d,['fecha']);
+        requireThat($d['fecha'] >= $x['fecha'],'Payment predates invoice');
+        $q=$this->db->prepare('SELECT COALESCE(SUM(monto),0) FROM egresos WHERE compraId=? AND anulado=0');$q->execute([$x['id']]);
+        $m=Money::cents(Money::positive($d['monto']??0));
+        requireThat($m<=Money::cents($x['monto'])-Money::cents($q->fetchColumn()),'Exceeds supplier balance',409);
+        $v=['fecha'=>$d['fecha'],'grupo'=>'proveedores','categoria'=>'Mercancía / Proveedores','concepto'=>'Factura '.$x['folio'],'proveedor'=>$x['proveedor'],'sucursal'=>$x['sucursal'],'monto'=>Money::decimal($m),'compraId'=>$x['id']]+$this->payment($d+['sucursal'=>$x['sucursal']]);
+        $v['pagoAplazado']=$v['metodo']==='Tarjeta'&&!empty($d['pagoAplazado']);
+        $n=$this->add('egresos',$v,'supplier.pay');
+        $this->edit('compras',$x,['monto'=>$x['monto']],$d['version'],'supplier.pay');return $n;
     }
     private function receive(array $d): array {$this->p->demand('compras');$x=$this->old('compras',$d);requireThat($x['estado']==='En tránsito','Already received',409);$this->required($d,['entrega']);return $this->edit('compras',$x,['estado'=>'Recibida','entrega'=>$d['entrega']],$d['version'],'purchase.receive');}
     private function deactivate(array $d): array {$this->p->action('approve');$this->p->demand('gastos');$x=$this->old('categoriasGastos',$d);requireThat($x['nombre']!=='Otros','Cannot deactivate Otros');return $this->edit('categoriasGastos',$x,['activo'=>false],$d['version'],'category.deactivate');}
