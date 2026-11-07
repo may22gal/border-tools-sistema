@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 (async () => {
   const root = join(__dirname, '..');
   const server = createServer((req,res) => {
-    if(req.url === '/') return res.end('<html><body><div id="modal"></div><script>window.S={servicio:[{folio:"OS-001",cliente:"<script>no</scr"+"ipt>",herramienta:"Taladro",modelo:"ABC",serie:"123",falla:"Falla de prueba"}]};window.h=x=>String(x??"").replace(/[&<>"\u0027]/g,c=>"&#"+c.charCodeAt(0)+";");window.moneyC=n=>"$"+n;window.toast=x=>window.lastToast=x;window.openModal=(t,b)=>document.getElementById("modal").innerHTML=b;</script><script src="/printer-settings.js"></script><script src="/service-print.js"></script></body></html>');
+    if(req.url === '/') { res.setHeader('Content-Type','text/html; charset=utf-8'); return res.end('<html><body><div id="modal"></div><script>window.S={servicio:[{folio:"OS-001",cliente:"<script>no</scr"+"ipt>",herramienta:"Taladro",modelo:"ABC",serie:"123",falla:"Falla de prueba"}]};window.h=x=>String(x??"").replace(/[&<>"\u0027]/g,c=>"&#"+c.charCodeAt(0)+";");window.moneyC=n=>"$"+n;window.toast=x=>window.lastToast=x;window.openModal=(t,b)=>document.getElementById("modal").innerHTML=b;</script><script src="/printer-settings.js"></script><script src="/service-print.js"></script></body></html>'); }
     try { res.setHeader('Content-Type','text/javascript');res.end(readFileSync(join(root,req.url))); } catch {res.statusCode=404;res.end();}
   }).listen(0,'127.0.0.1');
   await new Promise(r=>server.listening?r():server.once('listening',r));
