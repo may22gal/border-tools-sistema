@@ -21,3 +21,7 @@ Los datos de prueba no se convierten automáticamente en datos de producción. A
 ## Verificar
 
 `node tools/build_vercel_demo.mjs`, `node demo/tests/adapter.cjs` y `node demo/tests/preview.cjs` (requiere Playwright con Chromium). El flujo de GitHub Actions prueba escritorio y móvil. La suite PHP/MySQL existente sigue verificando la versión conectada.
+
+## Ayuda para usuarios
+
+`backend/public/assets/help.js` agrega el botón ❓ arriba a la derecha y «Ayuda y preguntas» al final del menú, en la demo y en la versión PHP/MySQL. Tiene buscador por palabras (sin importar acentos) y solo muestra los temas de las secciones que el usuario puede abrir. Para agregar o cambiar preguntas, editar la lista `TOPICS` de ese archivo.

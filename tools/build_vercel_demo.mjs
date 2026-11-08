@@ -6,7 +6,7 @@ fs.rmSync(out,{recursive:true,force:true});
 fs.mkdirSync(path.join(out,'assets/vendor'),{recursive:true});
 let html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 html=html.replace('x.fechaAnulacion=stamp()','x.fechaAnulacion=new Date().toISOString().slice(0,19).replace("T"," ")');
-const scripts=['demo-adapter.js','supplier-finance.js','printer-settings.js','service-print.js'];
+const scripts=['demo-adapter.js','supplier-finance.js','printer-settings.js','service-print.js','help.js'];
 // Insert before the LAST </body>: earlier occurrences live inside print templates in the app's own JavaScript.
 const end=html.lastIndexOf('</body>');if(end<0)throw new Error('index.html has no </body>');
 html=html.slice(0,end)+scripts.map(n=>`<script src="/assets/${n}"></script>`).join('\n')+'\n'+html.slice(end);
