@@ -1,0 +1,21 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),crypto=require('crypto');
+const element={style:{},setAttribute(){},addEventListener(){},classList:{toggle(){}},innerHTML:''};
+let stored=null,allowSave=true;
+const ctx={console,Intl,Date,crypto,setTimeout,clearTimeout,window:null,document:{documentElement:element,getElementById(){return element},querySelectorAll(){return []},createElement(){return {...element}},body:{prepend(){}}},localStorage:{getItem(){return stored},setItem(k,v){if(!allowSave)throw Error('Quota');stored=v}}};ctx.window=ctx;vm.createContext(ctx);
+vm.runInContext(fs.readFileSync('index.html','utf8').match(/<script>([\s\S]*?)<\/script>/)[1],ctx);
+vm.runInContext('closeModal=()=>{};render=()=>{};toast=()=>{};S.compras=[];S.egresos=[];',ctx);
+vm.runInContext(fs.readFileSync('demo/static/demo-adapter.js','utf8'),ctx);
+const run=s=>vm.runInContext(s,ctx),invoice={folio:'F1',proveedor:'Test',fecha:'2026-10-01',sucursal:'Granjero',monto:1000,recibida:true};
+assert.equal(ctx.BT.mutate('supplier.invoice',invoice),true);
+assert.equal(ctx.BT.mutate('supplier.invoice',invoice),false);
+assert.equal(run('S.compras.length'),1);assert.equal(run('S.egresos.length'),0);
+const identity=run('({id:S.compras[0].id,version:S.compras[0]._version})');
+const payment={...identity,fecha:'2026-10-29',monto:400,metodo:'Tarjeta',pagoAplazado:true};
+assert.equal(ctx.BT.mutate('supplier.pay',{...payment,monto:1001}),false);
+assert.equal(ctx.BT.mutate('supplier.pay',{...payment,fecha:'2026-09-30'}),false);
+assert.equal(ctx.BT.mutate('supplier.pay',payment),true);
+assert.equal(ctx.BT.mutate('supplier.pay',payment),false); // stale form cannot double-submit
+assert.equal(run('S.egresos.length'),1);
+run("role='ventas_g'");assert.equal(ctx.BT.mutate('supplier.invoice',{...invoice,folio:'F2'}),false);
+run("role='direccion'");allowSave=false;assert.equal(ctx.BT.mutate('supplier.invoice',{...invoice,folio:'F2'}),false);assert.equal(run('S.compras.length'),1);
+console.log('PASS local preview: no invoice cash outflow, duplicate/stale/overpayment/date/role guards and storage failure rollback');

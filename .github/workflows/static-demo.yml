@@ -1,0 +1,20 @@
+name: Portable Vercel demo
+on:
+  push:
+    branches: [main, preview/vercel-demo]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  demo:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - run: node tools/build_vercel_demo.mjs
+      - run: node backend/tests/reference.mjs && node backend/tests/report-regressions.cjs && node demo/tests/adapter.cjs
+      - run: node demo/tests/preview.cjs
