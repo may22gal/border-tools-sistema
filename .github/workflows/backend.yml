@@ -1,7 +1,7 @@
 name: PHP MySQL migration checks
 on:
   push:
-    branches: [migration/php-mysql, fix/proveedores-flujo-20261107]
+    branches: [main, migration/php-mysql, fix/proveedores-flujo-20261107, fix/reportes-impresion-20261108]
   workflow_dispatch:
 concurrency:
   group: migration-checks-${{ github.ref }}
@@ -35,7 +35,9 @@ jobs:
       - name: PHP syntax
         run: find backend -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Original JavaScript baseline
-        run: node backend/tests/reference.mjs
+        run: |
+          node backend/tests/reference.mjs
+          node backend/tests/report-regressions.cjs
       - name: Financial parity and policy tests
         run: php backend/tests/finance.php
       - name: Real MySQL integration and concurrency

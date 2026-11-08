@@ -37,10 +37,20 @@ function isCardPayment(e){return !!e.origenCargoId||e.categoria===CARD_PAYMENT;}
 function upTo(v,end){const d=String(v||'').slice(0,10);return !!d&&d<=end;}
 function share(x,suc){return egresoMontoAsignado(x,suc);}
 function ratio(x,suc){const m=Number(x.monto)||0;return m>0?share(x,suc)/m:0;}
+// Cancellation timestamps are stored in UTC, business periods use Ciudad Juarez dates.
+function activeAt(e,end){
+ if(!e.anulado)return true;
+ if(!e.fechaAnulacion)return false;
+ const date=new Date(String(e.fechaAnulacion).replace(' ','T')+'Z');
+ if(Number.isNaN(date.getTime()))return false;
+ const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Ciudad_Juarez',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
+ const get=k=>parts.find(p=>p.type===k).value;
+ return get('year')+'-'+get('month')+'-'+get('day')>end;
+}
 window.comprasVsSalidas=function(p,suc){
  const eg=S.egresos.filter(e=>!e.anulado&&inReportRange(e.fecha,p)&&share(e,suc)>0);
  const own=eg.filter(e=>!e.compraId&&!isCardPayment(e));
- const facturas=S.compras.filter(x=>x.facturaRegistrada&&inReportRange(x.fecha,p)&&share(x,suc)>0);
+ const facturas=(S.reportPurchases||S.compras).filter(x=>x.facturaRegistrada&&inReportRange(x.fecha,p)&&share(x,suc)>0);
  const sum=(rows)=>r2(rows.reduce((a,x)=>a+share(x,suc),0));
  const r={
   alMomento:sum(own.filter(e=>!e.pagoAplazado)),
@@ -53,11 +63,11 @@ window.comprasVsSalidas=function(p,suc){
  r.registrado=r2(r.alMomento+r.conTarjeta+r.facturas);
  r.salidas=btTotals(p,suc).egresos;
  // Balances as of the last day of the period, so October's report still shows what was owed at October's close.
- r.deudaTarjeta=r2(S.egresos.filter(e=>!e.anulado&&e.pagoAplazado&&upTo(e.fecha,p.end)).reduce((a,e)=>{
-   const pagado=liquidacionesDeCargo(e).filter(x=>upTo(x.fecha,p.end)).reduce((s,x)=>s+Number(x.monto||0),0);
+ r.deudaTarjeta=r2(S.egresos.filter(e=>activeAt(e,p.end)&&e.pagoAplazado&&upTo(e.fecha,p.end)).reduce((a,e)=>{
+   const pagado=S.egresos.filter(x=>x.origenCargoId===e.id&&activeAt(x,p.end)&&upTo(x.fecha,p.end)).reduce((s,x)=>s+Number(x.monto||0),0);
    return a+Math.max(0,Number(e.monto||0)-pagado)*ratio(e,suc);},0));
- r.deudaProveedores=r2(S.compras.filter(x=>x.facturaRegistrada&&upTo(x.fecha,p.end)).reduce((a,x)=>{
-   const pagado=S.egresos.filter(e=>!e.anulado&&e.compraId===x.id&&upTo(e.fecha,p.end)).reduce((s,e)=>s+Number(e.monto||0),0);
+ r.deudaProveedores=r2((S.reportPurchases||S.compras).filter(x=>x.facturaRegistrada&&upTo(x.fecha,p.end)).reduce((a,x)=>{
+   const pagado=S.egresos.filter(e=>activeAt(e,p.end)&&e.compraId===x.id&&upTo(e.fecha,p.end)).reduce((s,e)=>s+Number(e.monto||0),0);
    return a+Math.max(0,Number(x.monto||0)-pagado)*ratio(x,suc);},0));
  return r;
 };

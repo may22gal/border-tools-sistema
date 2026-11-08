@@ -64,6 +64,12 @@ final class App {
         }unset($e);
         // Do not expose payroll records merely because a user can view general expenses.
         if(!$this->p->page('finanzas')&&!$this->p->page('caja')&&!$this->p->page('reportes')&&!$this->p->page('sucursales'))$s['egresos']=array_values(array_filter($s['egresos'],fn($e)=>$this->p->page(Finance::group($e))));
+        // Financial reports get only invoice amounts/links, not access to the purchasing module.
+        $s['reportPurchases']=[];
+        if($this->p->page('finanzas')||$this->p->page('reportes')){
+            foreach($this->r->all('compras') as $invoice)if($invoice['facturaRegistrada'])
+                $s['reportPurchases'][]=['id'=>$invoice['id'],'fecha'=>$invoice['fecha'],'monto'=>(float)$invoice['monto'],'sucursal'=>$invoice['sucursal'],'facturaRegistrada'=>true];
+        }
         // Audit payloads are not included in activity summaries.
 
         $s['activity']=[];$q=$this->db->prepare('SELECT action,branch_name,created_at,after_data FROM change_log WHERE user_id=? OR ?=1 ORDER BY seq DESC LIMIT 60');$q->execute([$this->p->user['id'],$this->p->user['role']==='direccion'&&count($this->p->branches)===2?1:0]);foreach($q as $a)$s['activity'][]=['texto'=>$this->activityText($a),'suc'=>$a['branch_name']==='Granjero'?'g':($a['branch_name']==='Troncoso'?'t':'sys'),'ts'=>$a['created_at']];
