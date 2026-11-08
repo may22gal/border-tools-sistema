@@ -1,0 +1,10 @@
+{
+  "name":"Border Tools, demostración ficticia PHP/MySQL",
+  "dockerComposeFile":"compose.yml",
+  "service":"app",
+  "workspaceFolder":"/project",
+  "overrideCommand":false,
+  "forwardPorts":[8080],
+  "portsAttributes":{"8080":{"label":"Demostración conectada","onAutoForward":"openBrowser","protocol":"http"}},
+  "postAttachCommand":"printf '\\nSolo datos ficticios. Abrir /app.php en el puerto 8080.\\n'; php -r '$c=json_decode(file_get_contents(\"/private-demo/credentials.json\"),true); echo \"Usuario: \".$c[\"direccion\"][\"username\"].PHP_EOL.\"Contraseña temporal: \".$c[\"direccion\"][\"password\"].PHP_EOL;'"
+}

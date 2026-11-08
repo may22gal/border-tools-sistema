@@ -1,3 +1,6 @@
 {
-  "cleanUrls": true
+  "cleanUrls": true,
+  "buildCommand": "node tools/build_vercel_demo.mjs",
+  "outputDirectory": "dist",
+  "framework": null
 }

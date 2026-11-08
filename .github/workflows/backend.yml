@@ -1,0 +1,129 @@
+name: PHP MySQL migration checks
+on:
+  push:
+    branches: [main, migration/php-mysql, fix/proveedores-flujo-20261107, fix/reportes-impresion-20261108]
+  workflow_dispatch:
+concurrency:
+  group: migration-checks-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: bt_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+    env:
+      BT_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=bt_test;charset=utf8mb4
+      BT_TEST_USER: root
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP and PDO MySQL
+        run: |
+          php -v
+          php -r 'exit(extension_loaded("pdo_mysql") ? 0 : 1);'
+      - name: PHP syntax
+        run: find backend -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Original JavaScript baseline
+        run: |
+          node backend/tests/reference.mjs
+          node backend/tests/report-regressions.cjs
+      - name: Financial parity and policy tests
+        run: php backend/tests/finance.php
+      - name: Real MySQL integration and concurrency
+        run: php backend/tests/integration.php
+  connected-ui:
+    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: bt_demo
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+    env:
+      BT_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=bt_demo;charset=utf8mb4
+      BT_TEST_USER: root
+      BT_DEMO: '1'
+      BT_ORIGIN: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, fileinfo
+          coverage: none
+      - name: Validate PHP and JavaScript
+        run: |
+          find backend demo -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check backend/public/assets/connected.js
+      - name: Prepare connected synthetic demo
+        run: |
+          BT_STAGE_HOME="$RUNNER_TEMP/bt-cpanel-host"
+          BT_PACKAGE_TEST_DIR="$RUNNER_TEMP/bt-cpanel-test"
+          BT_PACKAGE_DIR="$RUNNER_TEMP/bt-cpanel-review"
+          php demo/seed.php
+          python3 tools/build_cpanel_package.py --source-commit "$GITHUB_SHA" --home "$BT_STAGE_HOME" --output "$BT_PACKAGE_TEST_DIR"
+          python3 tools/build_cpanel_package.py --source-commit "$GITHUB_SHA" --output "$BT_PACKAGE_DIR"
+          mkdir -p "$BT_STAGE_HOME/public_html/bt-admin-public"
+          unzip -q "$BT_PACKAGE_TEST_DIR/private.zip" -d "$BT_STAGE_HOME"
+          unzip -q "$BT_PACKAGE_TEST_DIR/public.zip" -d "$BT_STAGE_HOME/public_html/bt-admin-public"
+          chmod -R go-rwx "$BT_STAGE_HOME/bt-admin-private"
+          find "$BT_STAGE_HOME" -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -S 127.0.0.1:8080 -t "$BT_STAGE_HOME/public_html/bt-admin-public" backend/public/router.php > /tmp/bt-demo-php.log 2>&1 &
+          for i in $(seq 1 30); do test "$(curl --silent --output /tmp/bt-unconfigured.txt --write-out '%{http_code}' http://localhost:8080/app.php)" = 503 && break; sleep 1; done
+          test "$(curl --silent --output /tmp/bt-unconfigured.txt --write-out '%{http_code}' http://localhost:8080/app.php)" = 503
+          cp demo/.private/config.php "$BT_STAGE_HOME/bt-admin-private/config.php"
+          chmod 600 "$BT_STAGE_HOME/bt-admin-private/config.php"
+          for i in $(seq 1 30); do curl --silent http://localhost:8080/app.php >/dev/null && break; sleep 1; done
+      - name: Verify generated HTML before browser tests
+        run: |
+          curl --fail --silent http://localhost:8080/app.php > /tmp/bt-rendered.html
+          node backend/tests/render.mjs /tmp/bt-rendered.html
+      - name: Install browser test dependencies
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Desktop and mobile connected workflows
+        run: npx playwright test --max-failures=2
+      - name: Package the tested synthetic demonstration
+        run: git archive --format=zip --output=/tmp/border-tools-connected-demo.zip HEAD
+      - name: Save runnable demonstration
+        uses: actions/upload-artifact@v4
+        with:
+          name: border-tools-connected-demo
+          path: /tmp/border-tools-connected-demo.zip
+          retention-days: 14
+      - name: Save reviewed cPanel installation package
+        uses: actions/upload-artifact@v4
+        with:
+          name: border-tools-cpanel-review-only
+          path: ${{ runner.temp }}/bt-cpanel-review/
+          retention-days: 14
+      - name: Save visual proof and test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connected-desktop-mobile-proof
+          path: |
+            test-results/
+            playwright-report/
+            /tmp/bt-demo-php.log
+          retention-days: 14
