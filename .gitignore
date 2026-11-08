@@ -1,0 +1,11 @@
+/backend/config.php
+/backend/storage/
+/backend/tests/generated/
+*.log
+.env
+/demo/.private/
+/playwright-report/
+/test-results/
+/node_modules/
+__pycache__/
+/dist/
