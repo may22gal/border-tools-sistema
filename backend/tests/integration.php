@@ -80,6 +80,34 @@ $reportInvoices=$blockedSupplier->state()['state']['reportPurchases'];ok(count($
 $deniedPolicy=new Policy(array_replace($user,['role'=>'finanzas']),['Granjero','Troncoso'],['gastos'=>false]);fails(fn()=>cmd(new App($db,$deniedPolicy),'expense.create',['grupo'=>'gastos']),403);
 // All affected rows roll back if any later validation fails.
 $before=(int)$db->query('SELECT COUNT(*) FROM cobranzas')->fetchColumn();fails(fn()=>cmd($app,'credit.payment',ident($credit)+['fecha'=>'INVALID','monto'=>'1.00','metodo'=>'Efectivo']),422);ok((int)$db->query('SELECT COUNT(*) FROM cobranzas')->fetchColumn()===$before,'invalid date rollback');
+// Regression: linked customer balances, explicit limit confirmation, transfer reversal and stock rollback.
+$cfix=cmd($app,'catalog.create',['entity'=>'clientesB2B','nombre'=>'Balance regression','sucursal'=>'Troncoso','credito'=>'1000.00']);
+$crfix=cmd($app,'credit.create',['cliente'=>$cfix['nombre'],'clienteId'=>$cfix['id'],'sucursal'=>'Troncoso','fecha'=>'2027-01-01','monto'=>'1000.00']);
+ok($repo->get('clientesB2B',$cfix['id'])['saldo']==='1000.00','new credit updates B2B balance');
+fails(fn()=>cmd($app,'credit.create',['cliente'=>$cfix['nombre'],'sucursal'=>'Troncoso','fecha'=>'2027-01-01','monto'=>'1.00']),422);
+$trfix=cmd($app,'credit.payment',ident($crfix)+['fecha'=>'2027-01-02','metodo'=>'Transferencia','transferenciaStatus'=>'Pendiente','monto'=>'1000.00']);
+$trfix=cmd($app,'transfer.decide',ident($trfix)+['tipo'=>'abono','approved'=>false]);
+ok($repo->get('creditos',$crfix['id'])['saldo']==='1000.00'&&$repo->get('creditos',$crfix['id'])['estado']==='Pendiente','rejected collection restores debt');
+ok($repo->get('clientesB2B',$cfix['id'])['saldo']==='1000.00','rejection restores B2B balance');
+$trfix=cmd($app,'transfer.decide',ident($trfix)+['tipo'=>'abono','approved'=>false]);ok($repo->get('creditos',$crfix['id'])['saldo']==='1000.00','repeated rejection never doubles debt');
+$trfix=cmd($app,'transfer.decide',ident($trfix)+['tipo'=>'abono','approved'=>true]);ok($repo->get('creditos',$crfix['id'])['saldo']==='0.00','approval after rejection reapplies collection');
+$trfix=cmd($app,'transfer.decide',ident($trfix)+['tipo'=>'abono','approved'=>false]);
+$trfix=cmd($app,'payment.correctMethod',ident($trfix)+['metodo'=>'Efectivo']);ok($repo->get('creditos',$crfix['id'])['saldo']==='0.00','method correction reapplies rejected collection once');
+cmd($app,'credit.create',['cliente'=>$cfix['nombre'],'sucursal'=>'Troncoso','fecha'=>'2027-01-03','monto'=>'1100.00','confirmLimit'=>true]);
+ok($repo->get('clientesB2B',$cfix['id'])['saldo']==='1100.00','confirmed excess links client by branch and name');
+ok((int)$db->query("SELECT COUNT(*) FROM change_log WHERE action='credit.limitOverride'")->fetchColumn()===1,'limit exception audited');
+$noCreditPage=new App($db,new Policy(array_replace($user,['role'=>'ventas_t']),['Troncoso']));$rows=array_column($noCreditPage->state()['state']['clientesB2B'],null,'id');ok($rows[$cfix['id']]['saldo']==='1100.00','customer balance correct without credit-page access');
+$beforeMoves=(int)$db->query('SELECT COUNT(*) FROM inventario')->fetchColumn();
+fails(fn()=>cmd($app,'inventory.move',['fecha'=>'2027-01-01','tipo'=>'Salida','producto'=>'Synthetic tool','sku'=>'TEST-SKU','sucursal'=>'Granjero','cantidad'=>'4']),409);
+ok((int)$db->query('SELECT COUNT(*) FROM inventario')->fetchColumn()===$beforeMoves&&(float)$repo->get('stockMin',$stock['id'])['actual']===3.0,'excess stock movement rolls back completely');
+fails(fn()=>cmd($app,'inventory.move',['fecha'=>'2027-01-01','tipo'=>'Salida','producto'=>'Unknown','sku'=>'UNKNOWN','sucursal'=>'Granjero','cantidad'=>'1']),422);
+// Direct consumable credit-card purchases also leave cash only when paid in later months.
+$consumable=cmd($app,'expense.create',['fecha'=>'2027-10-29','grupo'=>'gastos','categoria'=>'Papelería','concepto'=>'Credit card consumables','monto'=>'300.00','sucursal'=>'Troncoso','metodo'=>'Tarjeta','pagoAplazado'=>true]);
+cmd($app,'expense.settle',ident($consumable)+['fecha'=>'2027-11-20','monto'=>'100.00','metodo'=>'Transferencia']);$consumable=$repo->get('egresos',$consumable['id']);
+cmd($app,'expense.settle',ident($consumable)+['fecha'=>'2027-12-03','monto'=>'200.00','metodo'=>'Transferencia']);
+ok($app->report(['start'=>'2027-10-01','end'=>'2027-10-31'],'Troncoso')['totals']['egresos']===0.0,'October consumables on card are not cash outflow');
+ok($app->report(['start'=>'2027-11-01','end'=>'2027-11-30'],'Troncoso')['totals']['egresos']===100.0,'November consumable partial settlement once');
+ok($app->report(['start'=>'2027-12-01','end'=>'2027-12-31'],'Troncoso')['totals']['egresos']===200.0,'December consumable remainder once');
 session_start();$auth=new Auth($db,['origin'=>'https://example.invalid']);$auth->login($user['username'],$password,'127.0.0.1');ok($auth->policy()->user['id']===$user['id'],'password login');
 $_SERVER['HTTP_ORIGIN']='https://example.invalid';$_SERVER['HTTP_X_CSRF_TOKEN']=$_SESSION['csrf'];$auth->csrf();ok(true,'valid csrf');$_SERVER['HTTP_X_CSRF_TOKEN']='tampered';fails(fn()=>$auth->csrf(),403);
 $db->prepare('UPDATE users SET auth_version=auth_version+1 WHERE id=?')->execute([$user['id']]);fails(fn()=>$auth->policy(),401);$auth->logout();

@@ -19,5 +19,5 @@ $html=str_replace('encodeURIComponent(msg)',"encodeURIComponent(msg).replace(/'/
 $html=str_replace('encodeURIComponent(x.nombre)',"encodeURIComponent(x.nombre).replace(/'/g,'%27')",$html);
 $end=strrpos($html,'</body>');
 if($end===false){http_response_code(503);exit('Documento no válido');}
-$html=substr_replace($html,'<script src="assets/connected.js"></script><script src="assets/supplier-finance.js"></script><script src="assets/printer-settings.js"></script><script src="assets/service-print.js"></script><script src="assets/help.js"></script></body>',$end,strlen('</body>'));
+$html=substr_replace($html,'<script src="assets/connected.js"></script><script src="assets/supplier-finance.js"></script><script src="assets/printer-settings.js"></script><script src="assets/service-print.js"></script><script src="assets/operation-corrections.js"></script><script src="assets/help.js"></script></body>',$end,strlen('</body>'));
 echo $html;

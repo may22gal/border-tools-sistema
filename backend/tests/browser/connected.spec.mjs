@@ -202,3 +202,19 @@ test('help is searchable and only lists topics for the user role',async({page})=
  const topics=await page.evaluate(()=>ayudaTemasVisibles());expect(topics.some(q=>q.includes('tarjeta'))).toBe(false);
  await expect(page.locator('#ayuda_lista')).toContainText('corte');
 });
+
+test('customer balance, rejected bank payment and insufficient stock stay consistent',async({page},info)=>{
+ await login(page);const tag='Regression '+info.project.name+' '+Date.now();
+ await page.evaluate(async name=>{await BT.mutate('catalog.create',{entity:'clientesB2B',nombre:name,sucursal:'Granjero',credito:'500'},{page:'credito'});openCredito();},tag);
+ await page.locator('#cr_cliente').fill(tag);await page.locator('#cr_suc').selectOption('Granjero');await page.locator('#cr_monto').fill('1000');
+ page.once('dialog',dialog=>dialog.accept());await submit(page,'Guardar crédito');
+ expect(await page.evaluate(n=>S.clientesB2B.find(c=>c.nombre===n).saldo,tag)).toBe(1000);
+ await page.evaluate(n=>openCobroCredito(S.creditos.findIndex(c=>c.cliente===n)),tag);await page.locator('#cc_metodo').selectOption('Transferencia');await page.locator('#cc_status').selectOption('Pendiente');await submit(page,'Registrar abono');
+ await page.evaluate(async n=>{const i=S.cobranzas.findIndex(c=>c.cliente===n);await aprobarTransferencia('abono',i,false);},tag);
+ expect(await page.evaluate(n=>S.creditos.find(c=>c.cliente===n).saldo,tag)).toBe(1000);
+ expect(await page.evaluate(n=>S.clientesB2B.find(c=>c.nombre===n).saldo,tag)).toBe(1000);
+ await page.evaluate(async sku=>{await BT.mutate('stock.save',{sku,producto:sku,sucursal:'Granjero',actual:'2',minimo:'1'},{page:'inventario'});openMov();},tag);
+ await page.locator('#i_prod').fill(tag);await page.locator('#i_sku').fill(tag);await page.locator('#i_suc').selectOption('Granjero');await page.locator('#i_tipo').selectOption('Salida');await page.locator('#i_cant').fill('5');
+ await page.locator('#modal').getByRole('button',{name:'Guardar',exact:true}).click();await expect(page.getByText('No hay suficientes piezas disponibles.',{exact:true})).toBeVisible();
+ expect(await page.evaluate(sku=>S.stockMin.find(s=>s.sku===sku).actual,tag)).toBe(2);expect(await page.evaluate(sku=>S.inventario.some(s=>s.sku===sku),tag)).toBe(false);
+});
