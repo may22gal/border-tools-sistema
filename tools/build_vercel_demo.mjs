@@ -7,7 +7,9 @@ fs.mkdirSync(path.join(out,'assets/vendor'),{recursive:true});
 let html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 html=html.replace('x.fechaAnulacion=stamp()','x.fechaAnulacion=new Date().toISOString().slice(0,19).replace("T"," ")');
 const scripts=['demo-adapter.js','supplier-finance.js','printer-settings.js','service-print.js'];
-html=html.replace('</body>',scripts.map(n=>`<script src="/assets/${n}"></script>`).join('\n')+'\n</body>');
+// Insert before the LAST </body>: earlier occurrences live inside print templates in the app's own JavaScript.
+const end=html.lastIndexOf('</body>');if(end<0)throw new Error('index.html has no </body>');
+html=html.slice(0,end)+scripts.map(n=>`<script src="/assets/${n}"></script>`).join('\n')+'\n'+html.slice(end);
 fs.writeFileSync(path.join(out,'index.html'),html);
 fs.copyFileSync(path.join(root,'demo/static/demo-adapter.js'),path.join(out,'assets/demo-adapter.js'));
 for(const name of [...scripts.slice(1),'vendor/qz-tray-2.3.0.js','vendor/QZ-LICENSE.txt'])fs.copyFileSync(path.join(root,'backend/public/assets',name),path.join(out,'assets',name));
