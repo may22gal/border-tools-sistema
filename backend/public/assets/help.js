@@ -2,7 +2,7 @@
    Each topic names the screen it belongs to; a user only sees topics for screens their role can open. */
 (function(){
 'use strict';
-const connected=()=>!!(window.BT&&'csrf' in window.BT);
+const connected=()=>typeof BT!=='undefined'&&'csrf' in BT;
 // page: null = everyone. tags: extra words people might type when searching.
 const TOPICS=[
  {page:null,cat:'Primeros pasos',q:'¿Cómo entro al sistema?',a:'Escribe tu usuario y contraseña y presiona «Entrar». Cada usuario ve solo las secciones de su puesto. Si te falta una sección que necesitas, pídesela a Dirección.',tags:'login entrar usuario contraseña acceso sesión'},

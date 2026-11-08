@@ -93,6 +93,13 @@ $trfix=cmd($app,'transfer.decide',ident($trfix)+['tipo'=>'abono','approved'=>fal
 $trfix=cmd($app,'transfer.decide',ident($trfix)+['tipo'=>'abono','approved'=>true]);ok($repo->get('creditos',$crfix['id'])['saldo']==='0.00','approval after rejection reapplies collection');
 $trfix=cmd($app,'transfer.decide',ident($trfix)+['tipo'=>'abono','approved'=>false]);
 $trfix=cmd($app,'payment.correctMethod',ident($trfix)+['metodo'=>'Efectivo']);ok($repo->get('creditos',$crfix['id'])['saldo']==='0.00','method correction reapplies rejected collection once');
+// A rejected transfer cannot be reapplied after a replacement payment settled the debt.
+$guard=cmd($app,'credit.create',['cliente'=>'Reapproval guard','sucursal'=>'Troncoso','fecha'=>'2027-01-01','monto'=>'50.00']);
+$rejected=cmd($app,'credit.payment',ident($guard)+['fecha'=>'2027-01-02','monto'=>'50.00','metodo'=>'Transferencia']);
+$rejected=cmd($app,'transfer.decide',ident($rejected)+['tipo'=>'abono','approved'=>false]);$guard=$repo->get('creditos',$guard['id']);
+cmd($app,'credit.payment',ident($guard)+['fecha'=>'2027-01-03','monto'=>'50.00','metodo'=>'Efectivo']);
+fails(fn()=>cmd($app,'transfer.decide',ident($rejected)+['tipo'=>'abono','approved'=>true]),409);
+ok($repo->get('creditos',$guard['id'])['saldo']==='0.00'&&$repo->get('cobranzas',$rejected['id'])['transferenciaStatus']==='Rechazada','reapproval conflict preserves both balances and transfer state');
 cmd($app,'credit.create',['cliente'=>$cfix['nombre'],'sucursal'=>'Troncoso','fecha'=>'2027-01-03','monto'=>'1100.00','confirmLimit'=>true]);
 ok($repo->get('clientesB2B',$cfix['id'])['saldo']==='1100.00','confirmed excess links client by branch and name');
 ok((int)$db->query("SELECT COUNT(*) FROM change_log WHERE action='credit.limitOverride'")->fetchColumn()===1,'limit exception audited');

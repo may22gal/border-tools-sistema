@@ -21,6 +21,7 @@ También se verifica una compra directa de consumibles de $300 con tarjeta, liqu
 - Un nuevo crédito que supera el límite requiere confirmación explícita. En PHP la autorización queda en la bitácora. No se oculta una venta ya realizada por falta de límite: el responsable debe reconocer la excepción al registrar su deuda.
 - Un saldo antiguo sin cuentas relacionadas no se descarta: bloquea agregar nuevo crédito hasta conciliarlo. Los nombres duplicados en una sucursal requieren revisión.
 - Las salidas de inventario superiores a la existencia se rechazan sin guardar el movimiento ni modificar stock. Se requiere SKU y existencia registrada en la sucursal, también para las entradas.
+- La ayuda detecta correctamente la versión conectada al servidor.
 - La ayuda explica la diferencia entre impresión con QZ Tray y el diálogo del navegador.
 - Las correcciones están compartidas entre la demo y la interfaz PHP; el servidor valida independientemente dinero, permisos, límites y existencias.
 
