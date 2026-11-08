@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const source=fs.readFileSync('backend/public/assets/supplier-finance.js','utf8');
+const ctx={window:null,S:{egresos:[],compras:[],reportPurchases:[]},r2:n=>Math.round(n*100)/100,inReportRange:(d,p)=>d>=p.start&&d<=p.end,egresoMontoAsignado:(x,s)=>!s||x.sucursal===s?Number(x.monto):x.sucursal==='Ambas'?Number(x.monto)/2:0,btTotals:()=>({egresos:0})};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('const CARD_PAYMENT='),source.indexOf('window.comprasVsSalidasHtml=')),ctx);
+const p={start:'2026-10-01',end:'2026-10-31'};
+ctx.S.reportPurchases=[{id:'f',fecha:'2026-10-10',monto:1000,sucursal:'Granjero',facturaRegistrada:true}];
+ctx.S.egresos=[{id:'c',compraId:'f',fecha:'2026-10-29',monto:1000,sucursal:'Granjero',pagoAplazado:true}];
+assert.equal(ctx.comprasVsSalidas(p,null).registrado,1000);assert.equal(ctx.comprasVsSalidas(p,'Troncoso').registrado,0);
+ctx.S.egresos[0].anulado=true;ctx.S.egresos[0].fechaAnulacion='2026-11-05 10:00:00';
+assert.equal(ctx.comprasVsSalidas(p,null).deudaTarjeta,1000);assert.equal(ctx.comprasVsSalidas(p,null).deudaProveedores,0);
+assert.equal(ctx.comprasVsSalidas({...p,end:'2026-11-30'},null).deudaTarjeta,0);assert.equal(ctx.comprasVsSalidas({...p,end:'2026-11-30'},null).deudaProveedores,1000);
+ctx.S.egresos[0].anulado=false;ctx.S.egresos.push({origenCargoId:'c',fecha:'2026-10-30',monto:400,sucursal:'Granjero',anulado:true,fechaAnulacion:'2026-11-05 10:00:00'});
+assert.equal(ctx.comprasVsSalidas(p,null).deudaTarjeta,600);assert.equal(ctx.comprasVsSalidas({...p,end:'2026-11-30'},null).deudaTarjeta,1000);
+console.log('PASS report projection, branch scope, historical charge cancellation and historical payment cancellation');

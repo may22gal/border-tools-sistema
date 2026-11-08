@@ -76,6 +76,7 @@ ok(!in_array($sale['id'],array_column($limitedFinance->state()['state']['ventas'
 $blockedSupplier=new App($db,new Policy(array_replace($user,['role'=>'finanzas']),['Granjero','Troncoso'],['proveedores'=>false]));
 fails(fn()=>cmd($blockedSupplier,'supplier.invoice',$invoiceData),403);
 ok($blockedSupplier->state()['state']['compras']===[],'Supplier permission denial hides invoices');
+$reportInvoices=$blockedSupplier->state()['state']['reportPurchases'];ok(count($reportInvoices)>0,'Reports retain invoice amounts when purchasing denied');ok(!isset($reportInvoices[0]['proveedor']),'Report projection hides vendor detail');ok($salesApp->state()['state']['reportPurchases']===[],'Sales cannot read financial invoice projection');
 $deniedPolicy=new Policy(array_replace($user,['role'=>'finanzas']),['Granjero','Troncoso'],['gastos'=>false]);fails(fn()=>cmd(new App($db,$deniedPolicy),'expense.create',['grupo'=>'gastos']),403);
 // All affected rows roll back if any later validation fails.
 $before=(int)$db->query('SELECT COUNT(*) FROM cobranzas')->fetchColumn();fails(fn()=>cmd($app,'credit.payment',ident($credit)+['fecha'=>'INVALID','monto'=>'1.00','metodo'=>'Efectivo']),422);ok((int)$db->query('SELECT COUNT(*) FROM cobranzas')->fetchColumn()===$before,'invalid date rollback');

@@ -184,3 +184,15 @@ test('supplier payment form points received unpaid goods to pending invoice',asy
  await expect(page.locator('#modal')).toContainText('todavía no la pagas');await page.locator('#modal').getByRole('button',{name:'Registrar factura pendiente',exact:true}).click();
  await expect(page.locator('#fp_folio')).toBeVisible();
 });
+test('connected service exposes assigned receipt and label printers',async({page})=>{
+ await login(page);await navigate(page,'servicio');
+ await page.evaluate(()=>imprimirEtiqueta(0));
+ await expect(page.locator('#bt-ticket-size')).toHaveValue('76.2');await expect(page.locator('#bt-label-size')).toHaveValue('2x1');
+ await page.getByRole('button',{name:'Configurar impresoras de este equipo',exact:true}).click();
+ await page.evaluate(()=>{window.qz={websocket:{isActive:()=>true},printers:{find:async()=>['Recibos','Etiquetas']},configs:{create:(name,options)=>({name,options})},print:async(config,data)=>{window.testPrint={config,data};}};});
+ await page.getByRole('button',{name:'Buscar impresoras en Windows',exact:true}).click();
+ await page.locator('#bt-receipt-printer').selectOption('Recibos');await page.locator('#bt-label-printer').selectOption('Etiquetas');await page.locator('#bt-printer-mode').selectOption('direct');
+ await page.getByRole('button',{name:'Guardar configuración',exact:true}).click();await page.getByRole('button',{name:'Probar etiqueta',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>window.testPrint?.config.name)).toBe('Etiquetas');
+ await page.getByRole('button',{name:'Probar recibo',exact:true}).click();await expect.poll(()=>page.evaluate(()=>window.testPrint?.config.name)).toBe('Recibos');
+});
