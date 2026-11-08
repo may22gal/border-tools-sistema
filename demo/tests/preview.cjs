@@ -22,6 +22,15 @@ const http=require('http'),fs=require('fs'),path=require('path'),assert=require(
  await page.evaluate(()=>{go('finanzas');});assert.ok(await page.getByText('Compras del mes vs. salidas de dinero',{exact:false}).count());
  await page.evaluate(()=>{go('servicio');imprimirEtiqueta(0);});assert.equal(await page.locator('#bt-ticket-size').inputValue(),'76.2');assert.equal(await page.locator('#bt-label-size').inputValue(),'2x1');
  await page.evaluate(()=>{closeModal();role='ventas_g';applyPerms();go('proveedores');});assert.ok(await page.getByText('Acceso restringido',{exact:true}).count());
+ // Help: no sync banner, searchable, filtered by role.
+ assert.equal(await page.getByText('Sin sincronización',{exact:false}).count(),0);
+ await page.evaluate(()=>{role='finanzas';applyPerms();go('home');});
+ if(viewport.width<800)await page.evaluate(()=>abrirAyuda());else await page.locator('#helpBtn').click();
+ await page.locator('#ayuda_buscar').fill('gasolina');assert.ok(await page.locator('#ayuda_lista').getByText('gasolina',{exact:false}).count());
+ await page.locator('#ayuda_buscar').fill('palabrainexistente');assert.ok(await page.locator('#ayuda_lista').getByText('No encontré nada',{exact:false}).count());
+ await page.evaluate(()=>{closeModal();role='ventas_g';applyPerms();});
+ const sales=await page.evaluate(()=>ayudaTemasVisibles());assert.ok(sales.some(q=>q.includes('corte del día')));assert.ok(!sales.some(q=>q.includes('tarjeta')));
+ assert.ok(await page.locator('#helpNav').count());
  assert.deepEqual(errors,[]);await context.close();
  }
  console.log('PASS desktop/mobile: invoice → credit card → partial settlement, report months, reload, permissions and print sizes');

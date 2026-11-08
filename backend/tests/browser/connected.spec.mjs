@@ -196,3 +196,9 @@ test('connected service exposes assigned receipt and label printers',async({page
  await expect.poll(()=>page.evaluate(()=>window.testPrint?.config.name)).toBe('Etiquetas');
  await page.getByRole('button',{name:'Probar recibo',exact:true}).click();await expect.poll(()=>page.evaluate(()=>window.testPrint?.config.name)).toBe('Recibos');
 });
+test('help is searchable and only lists topics for the user role',async({page})=>{
+ await login(page,'ventas_g');await page.evaluate(()=>abrirAyuda());
+ await page.locator('#ayuda_buscar').fill('corte');await expect(page.locator('#ayuda_lista')).toContainText('corte del día');
+ const topics=await page.evaluate(()=>ayudaTemasVisibles());expect(topics.some(q=>q.includes('tarjeta'))).toBe(false);
+ await expect(page.locator('#ayuda_lista')).toContainText('corte');
+});
