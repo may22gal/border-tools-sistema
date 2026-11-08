@@ -157,3 +157,30 @@ test('edited uncertain submission cannot create a second expense',async({page},i
  await page.route('**/index.php?action=expense.create',async route=>{if(!lost){lost=true;await route.fetch();await route.abort('failed');}else await route.continue();});await page.locator('#modal button.primary').click();await page.waitForFunction(()=>!BT.busy);await expect(page.locator('#modal')).not.toHaveClass(/hidden/);
  await page.locator('#e_monto').fill('28.00');await page.locator('#modal button.primary').click();await expect(page.locator('#modal')).toHaveClass(/hidden/);await page.waitForFunction(()=>!BT.busy);expect(await page.evaluate(t=>S.egresos.filter(e=>e.concepto===t).map(e=>e.monto),concept)).toEqual([18]);
 });
+test('supplier invoice, received stock and card financing remain separate',async({page},info)=>{
+ await login(page,'finanzas');await navigate(page,'proveedores');
+ await page.getByRole('button',{name:'+ Registrar factura pendiente',exact:true}).click();
+ const folio='AUST-'+info.project.name+'-'+Date.now();
+ const before=await page.evaluate(()=>comprasVsSalidas({start:todayBiz(),end:todayBiz()},null));
+ await page.locator('#fp_folio').fill(folio);await page.locator('#fp_proveedor').fill('Proveedor de prueba');await page.locator('#fp_monto').fill('1234.56');
+ await submit(page,'Guardar factura pendiente');
+ await expect(page.locator('#view')).toContainText(folio);
+ const row=page.locator('tr').filter({hasText:folio});await expect(row).toContainText('Pendiente de pago');
+ await row.getByRole('button',{name:'Registrar pago',exact:true}).click();
+ await page.locator('#sp_metodo').selectOption('Tarjeta');await submit(page,'Guardar pago');
+ await expect(page.locator('tr').filter({hasText:folio}).last()).toContainText('Pagada al proveedor');
+ const check=await page.evaluate(f=>{const x=S.compras.find(x=>x.folio===f), e=S.egresos.find(e=>e.compraId===x.id);return {deferred:e.pagoAplazado,cash:egresoAsignado(e,null),balance:saldoCargoTarjeta(e)};},folio);
+ expect(Boolean(check.deferred)).toBe(true);expect(check.cash).toBe(0);expect(check.balance).toBe(1234.56);
+ const after=await page.evaluate(()=>comprasVsSalidas({start:todayBiz(),end:todayBiz()},null));
+ // Counted once as a purchase, no cash outflow yet, and the debt moved to the card.
+ expect(Math.round((after.facturas-before.facturas)*100)).toBe(123456);expect(after.salidas).toBe(before.salidas);
+ expect(Math.round((after.deudaTarjeta-before.deudaTarjeta)*100)).toBe(123456);expect(Math.round((after.deudaProveedores-before.deudaProveedores)*100)).toBe(0);
+ await navigate(page,'reportes');await page.locator('[data-rep="compras"]').click();await expect(page.locator('#btReportBody')).toContainText('Salidas de dinero');
+ await navigate(page,'finanzas');await expect(page.locator('#view')).toContainText('Compras del mes vs. salidas de dinero');
+ await page.reload();await expect(page.locator('#app')).not.toHaveClass(/hidden/);await navigate(page,'proveedores');await expect(page.locator('#view')).toContainText(folio);
+});
+test('supplier payment form points received unpaid goods to pending invoice',async({page})=>{
+ await login(page,'finanzas');await navigate(page,'proveedores');await page.evaluate(()=>openEgreso('proveedores'));
+ await expect(page.locator('#modal')).toContainText('todavía no la pagas');await page.locator('#modal').getByRole('button',{name:'Registrar factura pendiente',exact:true}).click();
+ await expect(page.locator('#fp_folio')).toBeVisible();
+});

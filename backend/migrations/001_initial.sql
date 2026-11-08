@@ -173,6 +173,7 @@ CREATE TABLE `egresos` (
   `origenId` VARCHAR(64) NULL,
   `empleadoId` VARCHAR(64) NULL,
   `periodo` VARCHAR(255) NOT NULL DEFAULT '',
+  `compraId` VARCHAR(64) NULL,
   INDEX (`sucursal`),
   INDEX (`fecha`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -220,6 +221,8 @@ CREATE TABLE `compras` (
   `sucursal` VARCHAR(255) NOT NULL DEFAULT '',
   `estado` VARCHAR(255) NOT NULL DEFAULT '',
   `entrega` DATE NULL,
+  `facturaRegistrada` BOOLEAN NOT NULL DEFAULT FALSE,
+  `vencimiento` DATE NULL,
   INDEX (`sucursal`),
   INDEX (`fecha`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -343,6 +346,7 @@ ALTER TABLE ventas ADD FOREIGN KEY(evidenciaId) REFERENCES evidence(id);
 ALTER TABLE creditos ADD FOREIGN KEY(origenCorte) REFERENCES ventas(id), ADD FOREIGN KEY(clienteId) REFERENCES clientesB2B(id);
 ALTER TABLE cobranzas ADD FOREIGN KEY(creditoId) REFERENCES creditos(id), ADD FOREIGN KEY(clienteId) REFERENCES clientesB2B(id), ADD CHECK(monto > 0);
 ALTER TABLE comisiones ADD FOREIGN KEY(empleadoId) REFERENCES nomina(id);
+ALTER TABLE egresos ADD FOREIGN KEY(compraId) REFERENCES compras(id);
 ALTER TABLE egresos ADD FOREIGN KEY(origenCargoId) REFERENCES egresos(id), ADD FOREIGN KEY(empleadoId) REFERENCES nomina(id), ADD CHECK(monto > 0);
 ALTER TABLE creditos ADD CHECK(saldo >= 0 AND saldo <= monto);
 ALTER TABLE ventas ADD CHECK(creditoAsignado >= 0 AND creditoAsignado <= credito), ADD CHECK(manoObra >= 0 AND manoObra <= totalVentaSicar);

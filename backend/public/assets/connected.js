@@ -40,7 +40,7 @@ const BT = {
   },
   normalize(packet) {
     const numeric=new Set(['_version','efectivo','transferencia','tarjeta','cheque','credito','creditoAsignado','manoObra','totalVentaSicar','total','cantidad','precio','stock','monto','diagnosticoCosto','diagnosticoCobrado','reparacionBruta','cotizacion','cobro','sueldo','compras','saldo','actual','minimo','fondo','esperado','contado','diferencia','retiro','queda','entrada','salida']);
-    const bools=new Set(['fijo','activo','autorizado','cobrado','garantia','impactaCajaFisica','pagoAplazado','anulado','read','archived']);
+    const bools=new Set(['fijo','activo','autorizado','cobrado','garantia','impactaCajaFisica','pagoAplazado','anulado','read','archived','facturaRegistrada']);
     for(const key of ARRAY_KEYS){packet.state[key]??=[];for(const row of packet.state[key]){
       for(const [field,value] of Object.entries(row)){if(numeric.has(field)&&!(field==='entrada'&&key==='servicio')&&value!==null&&value!=='')row[field]=Number(value);if(bools.has(field))row[field]=value===true||value===1||value==='1';}
       if(key==='servicio'){row.entrada=row.entrada||'';row.entrega=row.entrega||'';row.historial??=[];for(const item of row.cotItems||[])item.monto=Number(item.monto);}

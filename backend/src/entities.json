@@ -101,7 +101,8 @@
     "origenCargoId": "VARCHAR(64) NULL",
     "origenId": "VARCHAR(64) NULL",
     "empleadoId": "VARCHAR(64) NULL",
-    "periodo": "VARCHAR(255) NOT NULL DEFAULT ''"
+    "periodo": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "compraId": "VARCHAR(64) NULL"
   },
   "nomina": {
     "nombre": "VARCHAR(255) NOT NULL DEFAULT ''",
@@ -128,7 +129,9 @@
     "monto": "DECIMAL(18,2) NOT NULL DEFAULT 0",
     "sucursal": "VARCHAR(255) NOT NULL DEFAULT ''",
     "estado": "VARCHAR(255) NOT NULL DEFAULT ''",
-    "entrega": "DATE NULL"
+    "entrega": "DATE NULL",
+    "facturaRegistrada": "BOOLEAN NOT NULL DEFAULT FALSE",
+    "vencimiento": "DATE NULL"
   },
   "clientesB2B": {
     "nombre": "VARCHAR(255) NOT NULL DEFAULT ''",

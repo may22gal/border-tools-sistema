@@ -41,10 +41,41 @@ $balance=cmd($app,'balance.save',['cuenta'=>'Synthetic bank','tipo'=>'Banco','su
 $purchase=cmd($app,'catalog.create',['entity'=>'compras','folio'=>'OC-SYNTH','proveedor'=>'Synthetic vendor','fecha'=>'2026-01-15','sucursal'=>'Troncoso','monto'=>'100.00']);$purchase=cmd($app,'purchase.receive',ident($purchase)+['entrega'=>'2026-01-16']);ok($purchase['estado']==='Recibida','purchase receipt');
 cmd($app,'catalog.create',['entity'=>'facturacion','folio'=>'F-SYNTH','cliente'=>'Synthetic invoice','fecha'=>'2026-01-15','sucursal'=>'Granjero','total'=>'10.00','estado'=>'Pendiente']);cmd($app,'catalog.create',['entity'=>'ml','producto'=>'Synthetic listing','precio'=>'10.00','stock'=>'1','sucursal'=>'Ambas','estado'=>'Competitivo']);cmd($app,'catalog.create',['entity'=>'oportunidades','nombre'=>'Synthetic lead','tipo'=>'Prospecto B2B','monto'=>'100.00','sucursal'=>'Granjero']);
 $category=cmd($app,'catalog.create',['entity'=>'categoriasGastos','nombre'=>'Synthetic expense category','fijo'=>true]);cmd($app,'category.deactivate',ident($category));$again=cmd($app,'catalog.create',['entity'=>'categoriasGastos','nombre'=>'Synthetic expense category','fijo'=>true]);ok($again['id']===$category['id'],'reactivate category without duplicate');
+// Supplier invoice -> card charge -> actual cash payment in a later month.
+$invoiceData=['folio'=>'AUST-TEST','proveedor'=>'Austromex prueba','fecha'=>'2026-10-10','vencimiento'=>'2026-10-29','monto'=>'10000.00','sucursal'=>'Granjero','recibida'=>true];
+$invoice=cmd($app,'supplier.invoice',$invoiceData,'supplier-invoice-unique-001');
+ok(cmd($app,'supplier.invoice',$invoiceData,'supplier-invoice-unique-001')['id']===$invoice['id'],'invoice retry idempotent');
+fails(fn()=>cmd($app,'supplier.invoice',$invoiceData),409);
+ok($app->report(['start'=>'2026-10-01','end'=>'2026-10-31'],'Granjero')['totals']['egresos']===0.0,'receipt does not spend cash');
+$paymentData=ident($invoice)+['fecha'=>'2026-10-29','monto'=>'10000.00','metodo'=>'Tarjeta','pagoAplazado'=>true];
+$invoiceCharge=cmd($app,'supplier.pay',$paymentData,'supplier-pay-unique-0001');
+ok(cmd($app,'supplier.pay',$paymentData,'supplier-pay-unique-0001')['id']===$invoiceCharge['id'],'supplier payment retry idempotent');
+ok($invoiceCharge['compraId']===$invoice['id']&&$invoiceCharge['pagoAplazado'],'supplier settled but card remains payable');
+$invoice=$repo->get('compras',$invoice['id']);fails(fn()=>cmd($app,'supplier.pay',ident($invoice)+['fecha'=>'2026-10-30','monto'=>'1','metodo'=>'Transferencia']),409);
+ok($app->report(['start'=>'2026-10-01','end'=>'2026-10-31'],'Granjero')['totals']['egresos']===0.0,'card charge does not spend October cash');
+fails(fn()=>cmd($app,'expense.settle',ident($invoiceCharge)+['fecha'=>'2026-10-01','monto'=>'100','metodo'=>'Transferencia']),422);
+fails(fn()=>cmd($app,'expense.settle',ident($invoiceCharge)+['fecha'=>'2026-11-20','monto'=>'100','metodo'=>'Tarjeta']),422);
+cmd($app,'expense.settle',ident($invoiceCharge)+['fecha'=>'2026-11-20','monto'=>'4000','metodo'=>'Transferencia']);
+$invoiceCharge=$repo->get('egresos',$invoiceCharge['id']);cmd($app,'expense.settle',ident($invoiceCharge)+['fecha'=>'2026-12-03','monto'=>'6000','metodo'=>'Transferencia']);
+ok($app->report(['start'=>'2026-11-01','end'=>'2026-11-30'],'Granjero')['totals']['egresos']===4000.0,'November partial settlement counted once');
+ok($app->report(['start'=>'2026-12-01','end'=>'2026-12-31'],'Granjero')['totals']['egresos']===6000.0,'December remaining settlement counted once');
 $report=$app->report(['start'=>'2026-01-01','end'=>'2026-01-31'],'Granjero');ok($report['totals']['ventas']===500.0,'authoritative report');
 $state=$app->state();ok(count($state['state']['servicio'][0]['historial'])>=8,'service history hydrated');ok(count($state['state']['egresos'])>0,'financial state');
 $settings=cmd($app,'settings.update',['version'=>1,'requireTransferApproval'=>true,'moduleFlags'=>['gastos'=>false]]);ok($settings['version']===2,'settings version');fails(fn()=>cmd($app,'settings.update',['version'=>1,'diagnosticoEstandar'=>99]),409);
 $salesUser=array_replace($user,['role'=>'ventas_g']);$salesPolicy=new Policy($salesUser,['Granjero']);$salesApp=new App($db,$salesPolicy);$salesState=$salesApp->state();ok($salesState['state']['egresos']===[],'sales cannot read expenses');ok($salesState['state']['nomina']===[],'sales cannot read payroll');foreach($salesState['state']['ventas'] as $row)ok($row['sucursal']==='Granjero','branch-scoped response');fails(fn()=>cmd($salesApp,'transfer.decide',ident($sale)+['tipo'=>'venta','approved'=>true]),403);fails(fn()=>cmd($salesApp,'sales.save',array_replace($saleData,['sucursal'=>'Troncoso'])),403);fails(fn()=>cmd($salesApp,'expense.create',[]),403);
+// Finance and Sales must see the identical authorized sales record across accounts.
+$financeApp=new App($db,new Policy(array_replace($user,['role'=>'finanzas']),['Granjero','Troncoso']));
+$financeState=$financeApp->state()['state'];
+$visibleSales=array_column($salesState['state']['ventas'],null,'id');$visibleFinance=array_column($financeState['ventas'],null,'id');
+ok(isset($visibleFinance[$sale['id']])&&$visibleFinance[$sale['id']]['totalVentaSicar']===$visibleSales[$sale['id']]['totalVentaSicar'],'Finance sees exact Sales cut');
+ok(count($financeState['compras'])>0,'Finance reads supplier invoices without purchase module');
+fails(fn()=>cmd($salesApp,'supplier.invoice',$invoiceData),403);
+fails(fn()=>cmd($salesApp,'supplier.pay',ident($invoice)+['fecha'=>'2026-11-01','monto'=>1,'metodo'=>'Transferencia']),403);
+$limitedFinance=new App($db,new Policy(array_replace($user,['role'=>'finanzas']),['Troncoso']));
+ok(!in_array($sale['id'],array_column($limitedFinance->state()['state']['ventas'],'id'),true),'Finance branch restriction respected');
+$blockedSupplier=new App($db,new Policy(array_replace($user,['role'=>'finanzas']),['Granjero','Troncoso'],['proveedores'=>false]));
+fails(fn()=>cmd($blockedSupplier,'supplier.invoice',$invoiceData),403);
+ok($blockedSupplier->state()['state']['compras']===[],'Supplier permission denial hides invoices');
 $deniedPolicy=new Policy(array_replace($user,['role'=>'finanzas']),['Granjero','Troncoso'],['gastos'=>false]);fails(fn()=>cmd(new App($db,$deniedPolicy),'expense.create',['grupo'=>'gastos']),403);
 // All affected rows roll back if any later validation fails.
 $before=(int)$db->query('SELECT COUNT(*) FROM cobranzas')->fetchColumn();fails(fn()=>cmd($app,'credit.payment',ident($credit)+['fecha'=>'INVALID','monto'=>'1.00','metodo'=>'Efectivo']),422);ok((int)$db->query('SELECT COUNT(*) FROM cobranzas')->fetchColumn()===$before,'invalid date rollback');

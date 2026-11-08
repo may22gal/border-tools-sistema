@@ -81,6 +81,7 @@ return [
                         "    exit('Sistema no configurado.');\n}\n"
                         "require $root.'/launch.php';\n"
                         "require $root.'/backend/public/" + name + "';\n").encode()
+    public["assets/supplier-finance.js"] = (ROOT / "backend/public/assets/supplier-finance.js").read_bytes()
     public["assets/connected.js"] = (ROOT / "backend/public/assets/connected.js").read_bytes()
     fragment = ("# Merge ONLY into the subdomain .htaccess after approval and a private copy.\n"
                 "# Preserve all existing cPanel-generated PHP sections. Never replace the file.\n"
@@ -122,7 +123,7 @@ return [
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     # Validate the actual ZIP contents, rather than just the in-memory layout.
     with zipfile.ZipFile(output / "public.zip") as z:
-        assert set(z.namelist()) == {"app.php", "index.php", "evidence.php", "assets/", "assets/connected.js"}
+        assert set(z.namelist()) == {"app.php", "index.php", "evidence.php", "assets/", "assets/connected.js", "assets/supplier-finance.js"}
         assert ".htaccess" not in z.namelist()
     with zipfile.ZipFile(output / "private.zip") as z:
         assert blob_sha(z.read("bt-admin-private/index.html")) == UI_BLOB
