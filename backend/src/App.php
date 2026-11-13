@@ -64,6 +64,7 @@ final class App {
         }unset($e);
         // Do not expose payroll records merely because a user can view general expenses.
         if(!$this->p->page('finanzas')&&!$this->p->page('caja')&&!$this->p->page('reportes')&&!$this->p->page('sucursales'))$s['egresos']=array_values(array_filter($s['egresos'],fn($e)=>$this->p->page(Finance::group($e))));
+        foreach($s['clientesB2B'] as &$client)$client['saldo']=Money::decimal($this->clientBalance($client));unset($client);
         // Financial reports get only invoice amounts/links, not access to the purchasing module.
         $s['reportPurchases']=[];
         if($this->p->page('finanzas')||$this->p->page('reportes')){
@@ -134,31 +135,66 @@ final class App {
         if(isset($d['id'])){$x=$this->old('ventas',$d);requireThat($x['sucursal']===$v['sucursal']&&$x['fecha']===$v['fecha'],'Cannot change cut identity');requireThat(Money::cents($v['credito'])>=Money::cents($x['creditoAsignado']),'Credit already assigned');return $this->edit('ventas',$x,$v,$d['version'],'sales.replace');}
         return $this->add('ventas',$v,'sales.create');
     }
+    private function clientCredits(array $c): array {
+        $q=$this->db->prepare('SELECT * FROM creditos WHERE sucursal=? AND (clienteId=? OR (clienteId IS NULL AND cliente=?))');$q->execute([$c['sucursal'],$c['id'],$c['nombre']]);return $q->fetchAll();
+    }
+    private function clientBalance(array $c): int {
+        $credits=$this->clientCredits($c);return $credits?array_sum(array_map(fn($x)=>Money::cents($x['saldo']),$credits)):Money::cents($c['saldo']);
+    }
+    private function syncClient(?string $id): void {
+        if(!$id)return;$c=$this->r->get('clientesB2B',$id,true);$this->edit('clientesB2B',$c,['saldo'=>Money::decimal($this->clientBalance($c))],(int)$c['_version'],'client.balance');
+    }
+    private function prepareClient(array &$v,array $d): void {
+        if(empty($v['clienteId'])){
+            $q=$this->db->prepare('SELECT id FROM clientesB2B WHERE nombre=? AND sucursal=?');$q->execute([$v['cliente'],$v['sucursal']]);$ids=$q->fetchAll(PDO::FETCH_COLUMN);
+            requireThat(count($ids)<=1,'Ambiguous client name; reconcile duplicate clients');if($ids)$v['clienteId']=$ids[0];
+        }
+        $this->validateClient($v);if(empty($v['clienteId']))return;
+        $c=$this->r->get('clientesB2B',$v['clienteId'],true);$balance=$this->clientBalance($c);
+        requireThat($this->clientCredits($c)||$balance===0,'Reconcile legacy client balance before adding credit');
+        if($balance+Money::cents($v['monto'])>Money::cents($c['credito'])){
+            requireThat(($d['confirmLimit']??false)===true,'Credit limit exceeded; explicit confirmation required');
+            $this->audit('credit.limitOverride','clientesB2B',$c,['id'=>$c['id'],'sucursal'=>$c['sucursal'],'saldoActual'=>Money::decimal($balance),'nuevoCredito'=>$v['monto'],'limite'=>$c['credito']]);
+        }
+    }
+    private function adjustCollection(array $x,bool $wasRejected,bool $isRejected): void {
+        if($wasRejected===$isRejected)return;
+        $delta=Money::cents($x['monto'])*($isRejected?1:-1);
+        if(!empty($x['creditoId'])){
+            $c=$this->r->get('creditos',$x['creditoId'],true);$balance=Money::cents($c['saldo'])+$delta;
+            requireThat($balance>=0&&$balance<=Money::cents($c['monto']),'Credit balance changed; reconcile before reapplying payment',409);
+            $this->edit('creditos',$c,['saldo'=>Money::decimal($balance),'estado'=>$balance>0?'Pendiente':'Pagado'],(int)$c['_version'],'credit.transferAdjustment');
+            $id=$c['clienteId']??$x['clienteId'];if(!$id){$q=$this->db->prepare('SELECT id FROM clientesB2B WHERE nombre=? AND sucursal=?');$q->execute([$c['cliente'],$c['sucursal']]);$ids=$q->fetchAll(PDO::FETCH_COLUMN);$id=count($ids)===1?$ids[0]:null;}$this->syncClient($id);
+        }elseif(!empty($x['clienteId'])){
+            $c=$this->r->get('clientesB2B',$x['clienteId'],true);requireThat(!$this->clientCredits($c),'Apply adjustment to linked credit',409);$balance=Money::cents($c['saldo'])+$delta;requireThat($balance>=0,'Payment exceeds balance',409);
+            $this->edit('clientesB2B',$c,['saldo'=>Money::decimal($balance)],(int)$c['_version'],'client.transferAdjustment');
+        }
+    }
     private function manualCredit(array $d): array {
-        $this->p->action('credit');$this->p->demand('credito');$this->required($d,['cliente','sucursal','fecha','monto']);$v=$this->pick($d,['cliente','sucursal','fecha','monto','clienteId']);$v['monto']=Money::positive($d['monto']);$v['saldo']=$v['monto'];$v['estado']='Pendiente';$this->validateClient($v);return $this->add('creditos',$v,'credit.create');
+        $this->p->action('credit');$this->p->demand('credito');$this->required($d,['cliente','sucursal','fecha','monto']);$v=$this->pick($d,['cliente','sucursal','fecha','monto','clienteId']);$v['monto']=Money::positive($d['monto']);$v['saldo']=$v['monto'];$v['estado']='Pendiente';$this->prepareClient($v,$d);$n=$this->add('creditos',$v,'credit.create');$this->syncClient($v['clienteId']??null);return $n;
     }
     private function validateClient(array $v): void {if(!empty($v['clienteId'])){$c=$this->r->get('clientesB2B',$v['clienteId'],true);requireThat($c['sucursal']===$v['sucursal']&&$c['nombre']===$v['cliente'],'Client does not match branch');}}
     private function assign(array $d): array {
         $this->p->action('credit');$this->p->demand('credito');$x=$this->old('ventas',$d);$m=Money::cents(Money::positive($d['monto']??0));$this->required($d,['cliente']);
         requireThat($m<=Money::cents($x['credito'])-Money::cents($x['creditoAsignado']),'Exceeds unassigned credit',409);
-        $v=['cliente'=>$d['cliente'],'clienteId'=>$d['clienteId']??null,'fecha'=>$x['fecha'],'sucursal'=>$x['sucursal'],'monto'=>Money::decimal($m),'saldo'=>Money::decimal($m),'estado'=>'Pendiente','origenCorte'=>$x['id']];$this->validateClient($v);
-        $c=$this->add('creditos',$v,'credit.assign');$this->edit('ventas',$x,['creditoAsignado'=>Money::decimal(Money::cents($x['creditoAsignado'])+$m)],$d['version'],'credit.assign');return $c;
+        $v=['cliente'=>$d['cliente'],'clienteId'=>$d['clienteId']??null,'fecha'=>$x['fecha'],'sucursal'=>$x['sucursal'],'monto'=>Money::decimal($m),'saldo'=>Money::decimal($m),'estado'=>'Pendiente','origenCorte'=>$x['id']];$this->prepareClient($v,$d);
+        $c=$this->add('creditos',$v,'credit.assign');$this->syncClient($v['clienteId']??null);$this->edit('ventas',$x,['creditoAsignado'=>Money::decimal(Money::cents($x['creditoAsignado'])+$m)],$d['version'],'credit.assign');return $c;
     }
     private function creditPayment(array $d,bool $b2b): array {
         $this->p->action('credit');$this->p->demand($b2b?'clientes':'credito');$x=$this->old($b2b?'clientesB2B':'creditos',$d);
-        if($b2b){$q=$this->db->prepare('SELECT id FROM creditos WHERE clienteId=? AND saldo>0');$q->execute([$x['id']]);requireThat(!$q->fetch(),'Apply payment to existing credit',409);}
-        $m=Money::cents(Money::positive($d['monto']??0));requireThat($m<=Money::cents($x['saldo']),'Payment exceeds balance',409);$this->required($d,['fecha','metodo']);
+        if($b2b)requireThat(!$this->clientCredits($x),'Apply payment to existing credit',409);
+        $m=Money::cents(Money::positive($d['monto']??0));requireThat($m<=Money::cents($x['saldo']),'Payment exceeds balance',409);$this->required($d,['fecha','metodo']);if(!$b2b)requireThat($d['fecha'] >= $x['fecha'],'Payment predates credit');
         $v=['fecha'=>$d['fecha'],'creditoId'=>$b2b?null:$x['id'],'clienteId'=>$b2b?$x['id']:$x['clienteId'],'cliente'=>$b2b?$x['nombre']:$x['cliente'],'sucursal'=>$x['sucursal'],'metodo'=>$d['metodo'],'monto'=>Money::decimal($m)];
         requireThat(in_array($v['metodo'],Finance::METHODS,true),'Invalid payment method');if($v['metodo']==='Transferencia'){$v['transferenciaStatus']=$d['transferenciaStatus']??'Aprobada';requireThat(in_array($v['transferenciaStatus'],['Aprobada','Pendiente'],true),'Invalid transfer status');}
         $n=$this->add('cobranzas',$v,'credit.payment');$changes=['saldo'=>Money::decimal(Money::cents($x['saldo'])-$m)];if(!$b2b)$changes['estado']=Money::cents($changes['saldo'])>0?'Pendiente':'Pagado';$this->edit($b2b?'clientesB2B':'creditos',$x,$changes,$d['version'],'credit.payment');
-        if(!$b2b&&!empty($x['clienteId'])){$c=$this->r->get('clientesB2B',$x['clienteId'],true);$this->edit('clientesB2B',$c,['saldo'=>Money::decimal(max(0,Money::cents($c['saldo'])-$m))],(int)$c['_version'],'credit.payment');}return $n;
+        if(!$b2b){$id=$x['clienteId'];if(!$id){$q=$this->db->prepare('SELECT id FROM clientesB2B WHERE nombre=? AND sucursal=?');$q->execute([$x['cliente'],$x['sucursal']]);$ids=$q->fetchAll(PDO::FETCH_COLUMN);$id=count($ids)===1?$ids[0]:null;}$this->syncClient($id);}return $n;
     }
     private function transfer(array $d): array {
         $this->p->action('approve');$t=($d['tipo']??'')==='venta'?'ventas':'cobranzas';$this->p->demand($t==='ventas'?'ventas':'credito');$x=$this->old($t,$d);
-        requireThat($t==='ventas'?Money::cents($x['transferencia'])>0:$x['metodo']==='Transferencia','Not a transfer');requireThat(is_bool($d['approved']??null),'Decision required');return $this->edit($t,$x,['transferenciaStatus'=>$d['approved']?'Aprobada':'Rechazada'],$d['version'],'transfer.decide');
+        requireThat($t==='ventas'?Money::cents($x['transferencia'])>0:$x['metodo']==='Transferencia','Not a transfer');requireThat(is_bool($d['approved']??null),'Decision required');if($t==='cobranzas')$this->adjustCollection($x,$x['transferenciaStatus']==='Rechazada',!$d['approved']);return $this->edit($t,$x,['transferenciaStatus'=>$d['approved']?'Aprobada':'Rechazada'],$d['version'],'transfer.decide');
     }
     private function correctMethod(array $d): array {
-        $this->p->action('credit');$this->p->demand('credito');$x=$this->old('cobranzas',$d);requireThat(in_array($d['metodo']??'',Finance::METHODS,true),'Invalid method');$v=['metodoOriginal'=>$x['metodo'],'metodo'=>$d['metodo']];if($d['metodo']==='Transferencia')$v['transferenciaStatus']='Pendiente';return $this->edit('cobranzas',$x,$v,$d['version'],'payment.correctMethod');
+        $this->p->action('credit');$this->p->demand('credito');$x=$this->old('cobranzas',$d);requireThat(in_array($d['metodo']??'',Finance::METHODS,true),'Invalid method');$v=['metodoOriginal'=>$x['metodo'],'metodo'=>$d['metodo']];if($d['metodo']==='Transferencia')$v['transferenciaStatus']='Pendiente';$this->adjustCollection($x,$x['metodo']==='Transferencia'&&$x['transferenciaStatus']==='Rechazada',false);return $this->edit('cobranzas',$x,$v,$d['version'],'payment.correctMethod');
     }
     private function expense(array $d): array {
         $this->p->action('expense');$g=$d['grupo']??'gastos';requireThat(in_array($g,['gastos','proveedores'],true),'Use payroll operation');$this->p->demand($g);$this->required($d,['fecha','sucursal','concepto','categoria']);if($g==='proveedores')$this->required($d,['proveedor']);
@@ -249,8 +285,9 @@ final class App {
     }
     private function inventory(array $d): array {
         $this->p->demand('inventario');$this->required($d,['fecha','tipo','producto','sucursal','cantidad']);requireThat(in_array($d['tipo'],['Entrada','Salida','Salida (Refacción)'],true)&&is_numeric($d['cantidad'])&&(float)$d['cantidad']>0,'Invalid movement');
+        requireThat(!empty($d['sku']),'SKU required');$q=$this->db->prepare('SELECT id FROM stockMin WHERE sku=? AND sucursal=?');$q->execute([$d['sku'],$d['sucursal']]);requireThat((bool)$q->fetchColumn(),'Register stock for this SKU and branch first');
         $v=$this->pick($d,['fecha','tipo','producto','sku','sucursal','cantidad']);$v['responsable']=$d['responsable']??$this->p->user['display_name'];$n=$this->add('inventario',$v,'inventory.move');
-        $q=$this->db->prepare('SELECT id FROM stockMin WHERE sku=? AND sucursal=?');$q->execute([$d['sku']??'',$d['sucursal']]);if($id=$q->fetchColumn()){$x=$this->r->get('stockMin',$id,true);$value=max(0,(float)$x['actual']+($d['tipo']==='Entrada'?1:-1)*(float)$d['cantidad']);$this->edit('stockMin',$x,['actual'=>number_format($value,4,'.','')],(int)$x['_version'],'inventory.stock');}return $n;
+        $q=$this->db->prepare('SELECT id FROM stockMin WHERE sku=? AND sucursal=?');$q->execute([$d['sku']??'',$d['sucursal']]);if($id=$q->fetchColumn()){$x=$this->r->get('stockMin',$id,true);requireThat($d['tipo']==='Entrada'||(float)$d['cantidad']<=(float)$x['actual'],'Insufficient stock',409);$value=(float)$x['actual']+($d['tipo']==='Entrada'?1:-1)*(float)$d['cantidad'];$this->edit('stockMin',$x,['actual'=>number_format($value,4,'.','')],(int)$x['_version'],'inventory.stock');}return $n;
     }
     private function removeBalance(array $d): array {
         $this->p->action('balance');$this->p->demand('finanzas');$x=$this->old('saldos',$d);

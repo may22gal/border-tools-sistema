@@ -2,7 +2,7 @@
    Each topic names the screen it belongs to; a user only sees topics for screens their role can open. */
 (function(){
 'use strict';
-const connected=()=>!!(window.BT&&'csrf' in window.BT);
+const connected=()=>typeof BT!=='undefined'&&'csrf' in BT;
 // page: null = everyone. tags: extra words people might type when searching.
 const TOPICS=[
  {page:null,cat:'Primeros pasos',q:'¿Cómo entro al sistema?',a:'Escribe tu usuario y contraseña y presiona «Entrar». Cada usuario ve solo las secciones de su puesto. Si te falta una sección que necesitas, pídesela a Dirección.',tags:'login entrar usuario contraseña acceso sesión'},
@@ -29,9 +29,9 @@ const TOPICS=[
  {page:'nomina',cat:'Nómina y comisiones',q:'¿Cómo registro un pago de nómina?',a:'Primero da de alta al empleado con «+ Dar de alta empleado». Después, en su renglón, usa «+ Registrar pago» con la fecha real y la forma de pago.',tags:'nómina sueldo pago empleado'},
  {page:'comisiones',cat:'Nómina y comisiones',q:'¿Cómo registro una comisión?',a:'Comisiones → «+ Registrar comisión». Elige al empleado y marca el pago cuando realmente se entregue.',tags:'comisión vendedor pago'},
  {page:'servicio',cat:'Centro de Diagnóstico',q:'¿Cómo recibo una herramienta para reparación?',a:'Centro de Diagnóstico → «+ Recibir herramienta». Captura cliente, teléfono, herramienta y falla. Después avanza la orden: recibida, en reparación, lista y entregada.',tags:'recibir herramienta reparación orden makita'},
- {page:'servicio',cat:'Centro de Diagnóstico',q:'¿Cómo imprimo la etiqueta o el recibo?',a:'En la orden usa «🏷 Etiqueta». La primera vez, en cada computadora elige la impresora de etiquetas y la de recibos, y haz una impresión de prueba. Después cada botón imprime en su impresora.',tags:'imprimir etiqueta recibo impresora térmica ticket'},
+ {page:'servicio',cat:'Centro de Diagnóstico',q:'¿Cómo imprimo la etiqueta o el recibo?',a:'En la orden usa «🏷 Etiqueta». La primera vez, en cada computadora elige la impresora de etiquetas y la de recibos, y haz una impresión de prueba. Para enviar cada documento a su impresora debes instalar QZ Tray y activar el envío directo. En modo navegador se abre el diálogo para elegir impresora.',tags:'imprimir etiqueta recibo impresora térmica ticket'},
  {page:'servicio',cat:'Centro de Diagnóstico',q:'¿El cobro del diagnóstico se registra aquí?',a:'El cobro se hace en SICAR. Aquí solo se relaciona con la orden con «Cobrar diagnóstico», para no contarlo dos veces.',tags:'diagnóstico cobro sicar'},
- {page:'inventario',cat:'Inventario',q:'¿Cómo registro una entrada o salida de inventario?',a:'Inventario → «+ Movimiento». Elige Entrada o Salida, el producto y la cantidad. Con «+ Mínimo» el sistema te avisa cuando quede poco.',tags:'inventario entrada salida stock mínimo existencia'},
+ {page:'inventario',cat:'Inventario',q:'¿Cómo registro una entrada o salida de inventario?',a:'Inventario → «+ Movimiento». Elige Entrada o Salida, el producto y la cantidad. Primero registra el SKU y su existencia con «+ Mínimo». Una salida no puede superar las piezas disponibles.',tags:'inventario entrada salida stock mínimo existencia'},
  {page:'clientes',cat:'Clientes',q:'¿Cómo doy de alta un cliente con crédito?',a:'Clientes B2B → «+ Cliente». Escribe su límite de crédito. Sus ventas a crédito y abonos aparecen en Crédito / Cobranza.',tags:'cliente alta b2b crédito límite'},
  {page:'facturacion',cat:'Facturación',q:'¿Cómo registro una factura emitida?',a:'Facturación → «+ Nueva factura». Captura folio, cliente, total y si está pendiente o pagada.',tags:'factura emitida cliente rfc'},
  {page:'excel',cat:'Excel',q:'¿Cómo saco la información a Excel?',a:'Excel / Importar, o los botones «Exportar» de cada sección. Se descarga un archivo que puedes abrir en Excel.',tags:'excel exportar descargar archivo'},

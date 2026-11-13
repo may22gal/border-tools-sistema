@@ -102,7 +102,7 @@ test('SICAR PDF, credit allocation, payroll, commission and cash forms',async({p
  const file=await page.request.get('/evidence.php?id='+receipt.evidenciaId);expect(file.status()).toBe(200);expect((await file.body()).equals(pdf)).toBe(true);
  await navigate(page,'credito');const row=page.locator('tr').filter({hasText:date}).filter({has:page.getByRole('button',{name:'Asignar a cliente'})});await row.getByRole('button',{name:'Asignar a cliente'}).click();
  await page.locator('#ac_cliente').fill('Cliente crédito UI '+info.project.name);await page.locator('#ac_monto').fill('50.00');await submit(page,'Crear cuenta por cobrar');
- const cr=page.locator('tr').filter({hasText:'Cliente crédito UI '+info.project.name});await cr.getByRole('button',{name:'Registrar abono'}).click();await page.locator('#cc_monto').fill('10.00');await submit(page,'Registrar abono');
+ const cr=page.locator('tr').filter({hasText:'Cliente crédito UI '+info.project.name});await cr.getByRole('button',{name:'Registrar abono'}).click();await page.locator('#cc_monto').fill('10.00');await page.locator('#cc_fecha').fill(date);await submit(page,'Registrar abono');
  await navigate(page,'nomina');await page.getByRole('button',{name:'+ Registrar pago',exact:true}).first().click();await page.locator('#pg_periodo').fill('Pago UI '+info.project.name);await page.locator('#pg_monto').fill('10.00');await submit(page,'Confirmar pago');
  await navigate(page,'comisiones');await page.getByRole('button',{name:'Registrar pago',exact:true}).first().click();await page.locator('#pg_monto').fill('10.00');await submit(page,'Confirmar pago');
  await navigate(page,'caja');await page.getByRole('button',{name:'+ Movimiento de efectivo',exact:true}).click();await page.locator('#cmx_monto').fill('5.00');await page.locator('#cmx_concepto').fill('Fondo UI '+info.project.name);await submit(page,'Guardar movimiento');
@@ -201,4 +201,20 @@ test('help is searchable and only lists topics for the user role',async({page})=
  await page.locator('#ayuda_buscar').fill('corte');await expect(page.locator('#ayuda_lista')).toContainText('corte del día');
  const topics=await page.evaluate(()=>ayudaTemasVisibles());expect(topics.some(q=>q.includes('tarjeta'))).toBe(false);
  await expect(page.locator('#ayuda_lista')).toContainText('corte');
+});
+
+test('customer balance, rejected bank payment and insufficient stock stay consistent',async({page},info)=>{
+ await login(page);const tag='Regression '+info.project.name+' '+Date.now();
+ await page.evaluate(async name=>{await BT.mutate('catalog.create',{entity:'clientesB2B',nombre:name,sucursal:'Granjero',credito:'500'},{page:'credito'});openCredito();},tag);
+ await page.locator('#cr_cliente').fill(tag);await page.locator('#cr_suc').selectOption('Granjero');await page.locator('#cr_monto').fill('1000');
+ await submit(page,'Guardar crédito');
+ expect(await page.evaluate(n=>S.clientesB2B.find(c=>c.nombre===n).saldo,tag)).toBe(1000);
+ await page.evaluate(n=>openCobroCredito(S.creditos.findIndex(c=>c.cliente===n)),tag);await page.locator('#cc_metodo').selectOption('Transferencia');await page.locator('#cc_status').selectOption('Pendiente');await submit(page,'Registrar abono');
+ await page.evaluate(async n=>{const i=S.cobranzas.findIndex(c=>c.cliente===n);await aprobarTransferencia('abono',i,false);},tag);
+ expect(await page.evaluate(n=>S.creditos.find(c=>c.cliente===n).saldo,tag)).toBe(1000);
+ expect(await page.evaluate(n=>S.clientesB2B.find(c=>c.nombre===n).saldo,tag)).toBe(1000);
+ await page.evaluate(async sku=>{await BT.mutate('stock.save',{sku,producto:sku,sucursal:'Granjero',actual:'2',minimo:'1'},{page:'inventario'});openMov();},tag);
+ await page.locator('#i_prod').fill(tag);await page.locator('#i_sku').fill(tag);await page.locator('#i_suc').selectOption('Granjero');await page.locator('#i_tipo').selectOption('Salida');await page.locator('#i_cant').fill('5');
+ await page.locator('#modal').getByRole('button',{name:'Guardar',exact:true}).click();await expect(page.getByText('No hay suficientes piezas disponibles.',{exact:true})).toBeVisible();
+ expect(await page.evaluate(sku=>S.stockMin.find(s=>s.sku===sku).actual,tag)).toBe(2);expect(await page.evaluate(sku=>S.inventario.some(s=>s.sku===sku),tag)).toBe(false);
 });

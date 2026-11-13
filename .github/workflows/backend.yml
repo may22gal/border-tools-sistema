@@ -1,7 +1,7 @@
 name: PHP MySQL migration checks
 on:
   push:
-    branches: [main, migration/php-mysql, fix/proveedores-flujo-20261107, fix/reportes-impresion-20261108]
+    branches: [main, fix/operacion-credito-inventario, migration/php-mysql, fix/proveedores-flujo-20261107, fix/reportes-impresion-20261108]
   workflow_dispatch:
 concurrency:
   group: migration-checks-${{ github.ref }}

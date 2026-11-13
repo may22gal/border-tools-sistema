@@ -83,7 +83,7 @@ return [
                         "require $root.'/backend/public/" + name + "';\n").encode()
     public["assets/supplier-finance.js"] = (ROOT / "backend/public/assets/supplier-finance.js").read_bytes()
     public["assets/connected.js"] = (ROOT / "backend/public/assets/connected.js").read_bytes()
-    for asset in ['printer-settings.js','service-print.js','help.js','vendor/qz-tray-2.3.0.js','vendor/QZ-LICENSE.txt']:
+    for asset in ['printer-settings.js','service-print.js','operation-corrections.js','help.js','vendor/qz-tray-2.3.0.js','vendor/QZ-LICENSE.txt']:
         public['assets/'+asset] = (ROOT / 'backend/public/assets' / asset).read_bytes()
     fragment = ("# Merge ONLY into the subdomain .htaccess after approval and a private copy.\n"
                 "# Preserve all existing cPanel-generated PHP sections. Never replace the file.\n"
