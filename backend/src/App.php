@@ -84,6 +84,7 @@ final class App {
             $q=$this->db->prepare('SELECT n.id,n.texto,n.orden,n.created_at AS ts,u.display_name AS `by`,(r.user_id IS NOT NULL) AS `read` FROM notifications n JOIN users u ON u.id=n.user_id LEFT JOIN notification_reads r ON r.notification_id=n.id AND r.user_id=? ORDER BY n.created_at DESC LIMIT 50');$q->execute([$this->p->user['id']]);$s['notifications']=$q->fetchAll();
         }
         $s['ownerLog']=$this->p->user['role']==='direccion'?$this->ownerLog():[];
+        if($s['cortesCaja'])$this->laterCorrections($s['cortesCaja']);
         return ['permissions'=>array_values(array_filter(Policy::PAGES['direccion'],fn($page)=>$this->p->page($page))),'settingsVersion'=>(int)$this->db->query('SELECT version FROM app_settings WHERE id=1')->fetchColumn(),'state'=>$s,'user'=>$this->p->user,'branches'=>$this->p->branches,'revision'=>(int)$this->db->query('SELECT COALESCE(MAX(seq),0) FROM change_log')->fetchColumn()];
     }
     // Read-only record for the owner: every void and transfer confirmation, with who, when and why.
@@ -98,6 +99,24 @@ final class App {
             $detalle=trim(implode(' · ',array_filter([$x['concepto']??null,$x['cliente']??null,isset($x['folio'])?'Factura '.$x['folio'].' '.($x['proveedor']??''):null,$r['entity']==='ventas'?'Corte del '.($x['fecha']??''):null,($x['fecha']??null)&&$r['entity']!=='ventas'?'Fecha '.$x['fecha']:null])));
             $out[]=['ts'=>$r['created_at'],'usuario'=>$r['display_name'],'tipo'=>$tipo,'detalle'=>$detalle,'monto'=>(string)$monto,'sucursal'=>$r['branch_name']??'','motivo'=>(string)($x['motivoAnulacion']??'')];
         }return $out;
+    }
+    // A cash cut is a snapshot: it is never recalculated. Voids made after it are listed beside it,
+    // with their effect on the expected cash, so the cut can be reconciled without changing it.
+    private function laterCorrections(array &$cuts): void {
+        $rows=[];
+        foreach($this->db->query("SELECT id,fecha,sucursal,monto,fechaAnulacion,motivoAnulacion,cliente FROM cobranzas WHERE anulado=1 AND metodo='Efectivo'") as $r)$rows[]=['id'=>$r['id'],'fecha'=>$r['fecha'],'sucursal'=>$r['sucursal'],'at'=>$r['fechaAnulacion'],'motivo'=>$r['motivoAnulacion'],'tipo'=>'Abono en efectivo','concepto'=>'Abono · '.$r['cliente'],'efecto'=>-Money::cents($r['monto'])];
+        foreach($this->db->query('SELECT id,fecha,sucursal,entrada,salida,fechaAnulacion,motivoAnulacion,concepto,tipo FROM cajaMovimientos WHERE anulado=1') as $r)$rows[]=['id'=>$r['id'],'fecha'=>$r['fecha'],'sucursal'=>$r['sucursal'],'at'=>$r['fechaAnulacion'],'motivo'=>$r['motivoAnulacion'],'tipo'=>$r['tipo']==='Entrada'?'Entrada manual':'Salida manual','concepto'=>$r['concepto'],'efecto'=>Money::cents($r['salida'])-Money::cents($r['entrada'])];
+        foreach($this->db->query('SELECT id,fecha,cajaSucursal,monto,fechaAnulacion,motivoAnulacion,concepto FROM egresos WHERE anulado=1 AND impactaCajaFisica=1') as $r)$rows[]=['id'=>$r['id'],'fecha'=>$r['fecha'],'sucursal'=>$r['cajaSucursal'],'at'=>$r['fechaAnulacion'],'motivo'=>$r['motivoAnulacion'],'tipo'=>'Egreso pagado con caja','concepto'=>$r['concepto'],'efecto'=>Money::cents($r['monto'])];
+        $who=$this->db->prepare("SELECT u.display_name FROM change_log c JOIN users u ON u.id=c.user_id WHERE c.record_id=? AND c.action IN ('payment.void','cash.voidMovement','expense.void','expense.resolveVoid') ORDER BY c.seq DESC LIMIT 1");
+        foreach($cuts as &$cut){$cut['correcciones']=[];$adjust=0;
+            foreach($rows as $r){
+                // Only voids made after the cut was saved; earlier ones are already outside its expected amount.
+                if($r['fecha']!==$cut['fecha']||$r['sucursal']!==$cut['sucursal']||!$r['at']||$r['at']<=$cut['_updatedAt'])continue;
+                $who->execute([$r['id']]);$adjust+=$r['efecto'];
+                $cut['correcciones'][]=['tipo'=>$r['tipo'],'concepto'=>$r['concepto'],'efecto'=>Money::decimal($r['efecto']),'fechaAnulacion'=>$r['at'],'motivo'=>(string)$r['motivo'],'usuario'=>(string)$who->fetchColumn()];
+            }
+            if($cut['correcciones']){$expected=Money::cents($cut['esperado'])+$adjust;$cut['esperadoAjustado']=Money::decimal($expected);$cut['diferenciaAjustada']=Money::decimal(Money::cents($cut['contado'])-$expected);}
+        }unset($cut);
     }
     public function receipt(string $key): array {
         requireThat((bool)preg_match('/^[a-zA-Z0-9_-]{16,100}$/D',$key),'Invalid receipt');
@@ -257,7 +276,7 @@ final class App {
         if(!empty($x['origenId'])&&in_array($x['grupo'],['nomina','comisiones'],true)){$t=$x['grupo'];$doc=$this->r->get($t,$x['origenId'],true);$q=$this->db->prepare('SELECT fecha FROM egresos WHERE origenId=? AND anulado=0 ORDER BY fecha DESC LIMIT 1');$q->execute([$x['origenId']]);$date=$q->fetchColumn();$v=$t==='nomina'?['ultimoPago'=>$date?:null,'estado'=>$date?'Pagado':'Activo']:['fechaPago'=>$date?:null,'estado'=>$date?'Pagada':'Pendiente'];$this->edit($t,$doc,$v,(int)$doc['_version'],'expense.reverseLinkedPayment');}
     }
     private function motivo(array $d): string {$m=trim(is_string($d['motivo']??null)?$d['motivo']:'');requireThat($m!==''&&strlen($m)<=500,'Void reason required');return $m;}
-    private function voided(string $motivo): array {return ['anulado'=>true,'fechaAnulacion'=>gmdate('Y-m-d H:i:s'),'motivoAnulacion'=>$motivo];}
+    private function voided(string $motivo): array {return ['anulado'=>true,'fechaAnulacion'=>(new \DateTimeImmutable('now',new \DateTimeZone('UTC')))->format('Y-m-d H:i:s.u'),'motivoAnulacion'=>$motivo];}
     // Whoever runs the cash voids directly, with a mandatory reason; the owner sees it afterwards. No approval step.
     private function voidDirect(array $d): array {
         $this->p->action('cash');$this->p->action('expense');$x=$this->old('egresos',$d);$this->expensePage($x);$this->canVoid($x);$m=$this->motivo($d);

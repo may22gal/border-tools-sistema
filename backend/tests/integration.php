@@ -150,6 +150,21 @@ fails(fn()=>cmd($salesApp,'expense.void',ident($repo->get('egresos',$pay['id']))
 $mv=cmd($financeApp,'cash.movement',['fecha'=>'2028-03-05','sucursal'=>'Granjero','tipo'=>'Entrada','concepto'=>'Fondo','monto'=>'75.00']);
 ok($financeApp->report(['start'=>'2028-03-05','end'=>'2028-03-05'],'Granjero')['totals']['manual']==75.0,'movement counts');
 cmd($financeApp,'cash.voidMovement',ident($mv)+['motivo'=>'se capturó en la sucursal equivocada']);ok($financeApp->report(['start'=>'2028-03-05','end'=>'2028-03-05'],'Granjero')['totals']['manual']==0.0,'voided movement leaves cash totals');
+// A void after a cash cut never changes the cut; it is listed beside it with the adjusted amounts, counted once.
+$m4=cmd($financeApp,'cash.movement',['fecha'=>'2028-04-01','sucursal'=>'Granjero','tipo'=>'Entrada','concepto'=>'Venta mostrador','monto'=>'100.00']);
+$e4=cmd($financeApp,'expense.create',['fecha'=>'2028-04-01','grupo'=>'gastos','categoria'=>'Otros','concepto'=>'Garrafón','monto'=>'30.00','sucursal'=>'Granjero','metodo'=>'Efectivo','impactaCajaFisica'=>true,'cajaSucursal'=>'Granjero']);
+$cut=cmd($financeApp,'cash.close',['fecha'=>'2028-04-01','sucursal'=>'Granjero','fondo'=>'0.00','contado'=>'70.00']);ok($cut['esperado']==='70.00'&&$cut['diferencia']==='0.00','cut balances before voids');
+$cutState=fn()=>array_values(array_filter($financeApp->state()['state']['cortesCaja'],fn($c)=>$c['id']===$cut['id']))[0];
+ok($cutState()['correcciones']===[],'no correction before any void');
+cmd($financeApp,'cash.voidMovement',ident($m4)+['motivo'=>'Era de otro día']);$c=$cutState();
+ok($c['esperado']==='70.00'&&$c['contado']==='70.00'&&$c['diferencia']==='0.00','saved cut unchanged after void');
+ok(count($c['correcciones'])===1&&$c['correcciones'][0]['efecto']==='-100.00'&&$c['correcciones'][0]['motivo']==='Era de otro día'&&$c['correcciones'][0]['usuario']!==''&&$c['esperadoAjustado']==='-30.00'&&$c['diferenciaAjustada']==='100.00','later void listed with adjusted expected and difference');
+cmd($financeApp,'expense.void',ident($repo->get('egresos',$e4['id']))+['motivo'=>'No salió de caja']);$c=$cutState();
+ok(count($c['correcciones'])===2&&$c['esperadoAjustado']==='0.00'&&$c['diferenciaAjustada']==='70.00','both later voids adjust once');
+ok($financeApp->report(['start'=>'2028-04-01','end'=>'2028-04-01'],'Granjero')['totals']['cashExpected']==0.0,'report excludes voided cash once, no correction entry');
+ok((int)$db->query("SELECT COUNT(*) FROM cajaMovimientos WHERE fecha='2028-04-01'")->fetchColumn()===1,'no automatic cash entry created');
+$cut=cmd($financeApp,'cash.close',ident($repo->get('cortesCaja',$cut['id']))+['fecha'=>'2028-04-01','sucursal'=>'Granjero','fondo'=>'0.00','contado'=>'70.00']);$c=$cutState();
+ok($c['esperado']==='0.00'&&$c['correcciones']===[],'a cut saved again after the voids already excludes them');
 // The owner sees every void and confirmation, with who, when and why; others do not.
 $log=$app->state()['state']['ownerLog'];$types=array_column($log,'tipo');
 ok(in_array('Abono anulado',$types,true)&&in_array('Factura de proveedor anulada',$types,true)&&in_array('Movimiento de caja anulado',$types,true)&&in_array('Egreso anulado',$types,true)&&in_array('Transferencia confirmada',$types,true)&&in_array('Transferencia capturada como confirmada',$types,true),'owner log lists voids and confirmations');

@@ -275,10 +275,20 @@ PAGES.credito=function(){
   const tail=html.slice(at).replace('<th>Monto</th></tr>','<th>Monto</th><th></th></tr>').replace(/<\/td><\/tr>/g,m=>{const x=rows[n++];return x?'</td><td><button class="secondary" onclick="anularMovimiento(\'cobranzas\','+S.cobranzas.indexOf(x)+')">Anular</button></td></tr>':m;}).replace('colspan="6"','colspan="7"');
   return html.slice(0,at)+tail;
 };
+// Cash cuts are never recalculated. A void made after a cut is shown beside it, with the adjusted
+// expected cash and difference for reconciliation only; no cash entry is created.
+function laterCorrectionsHtml(cuts){
+  const fixed=cuts.filter(c=>(c.correcciones||[]).length);if(!fixed.length)return '';
+  return `<div class="card" id="cortesCorregidos" style="margin-top:13px;border-left:3px solid var(--amber)"><h3>Cortes con corrección posterior</h3><p class="small muted" style="margin:-8px 0 12px">El corte guardado y el efectivo contado no cambian. Aquí solo se muestra cómo quedaría el esperado sin los movimientos anulados después del corte, para conciliar. No se crea ninguna entrada ni salida de efectivo.</p>${fixed.map(c=>{const total=c.correcciones.reduce((a,x)=>a+Number(x.efecto),0);return `<div class="warnbox" style="margin-top:10px"><b>Corte ${h(c.fecha)} · ${h(c.sucursal)}</b><div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Movimiento anulado</th><th>Anuló</th><th>Fecha y hora</th><th>Motivo</th><th>Efecto en el esperado</th></tr></thead><tbody>${c.correcciones.map(x=>`<tr><td>${h(x.tipo)} · ${h(x.concepto)}</td><td>${h(x.usuario)}</td><td>${h(BT.stampUTC(x.fechaAnulacion))}</td><td>${h(x.motivo)}</td><td>${moneyC(Number(x.efecto))}</td></tr>`).join('')}</tbody></table></div><div class="rline"><span>Esperado en el corte</span><b>${moneyC(c.esperado)}</b></div><div class="rline"><span>Movimientos anulados después</span><b>${moneyC(total)}</b></div><div class="rline"><span><b>Esperado ajustado</b></span><b>${moneyC(Number(c.esperadoAjustado))}</b></div><div class="rline"><span>Contado (sin cambio)</span><b>${moneyC(c.contado)}</b></div><div class="rline"><span><b>Diferencia ajustada</b></span><b style="color:${Math.abs(Number(c.diferenciaAjustada))<0.005?'var(--green)':'var(--red)'}">${moneyC(Number(c.diferenciaAjustada))}</b></div></div>`;}).join('')}</div>`;
+}
 // Cash: manual movements of the period with an "Anular" button.
 const btCashPage=PAGES.caja;
 PAGES.caja=function(){
-  const html=btCashPage();if(!can('corteCaja'))return html;const p=getReportPeriod(),suc=sucName();
+  let html=btCashPage();const p=getReportPeriod(),suc=sucName();
+  const cuts=filterPeriod(S.cortesCaja,'fecha',p).filter(c=>!suc||c.sucursal===suc);
+  for(const c of cuts)if((c.correcciones||[]).length)html=html.replace('<tr><td>'+c.fecha+'</td><td>'+sucBadge(c.sucursal)+'</td>','<tr><td>'+c.fecha+'<br><a href="#cortesCorregidos" class="badge b-amber" title="Ver la corrección posterior">Corrección posterior</a></td><td>'+sucBadge(c.sucursal)+'</td>');
+  html=html.replace('<div class="card" style="margin-top:13px"><h3>Movimientos que afectan la caja física</h3>',laterCorrectionsHtml(cuts)+'<div class="card" style="margin-top:13px"><h3>Movimientos que afectan la caja física</h3>');
+  if(!can('corteCaja'))return html;
   const rows=S.cajaMovimientos.filter(x=>inReportRange(x.fecha,p)&&(!suc||x.sucursal===suc));if(!rows.length)return html;
   return html+`<div class="card" style="margin-top:13px"><h3>Movimientos manuales de efectivo · corregir</h3><p class="small muted" style="margin:-8px 0 12px">Si uno se capturó mal, anúlalo y vuelve a capturarlo.</p><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Sucursal</th><th>Tipo</th><th>Concepto</th><th>Importe</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td>${h(x.fecha)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(x.tipo)}</td><td>${h(x.concepto)}</td><td>${moneyC(Number(x.entrada)||-Number(x.salida))}</td><td><button class="secondary" onclick="anularMovimiento('cajaMovimientos',${S.cajaMovimientos.indexOf(x)})">Anular</button></td></tr>`).join('')}</tbody></table></div></div>`;
 };
