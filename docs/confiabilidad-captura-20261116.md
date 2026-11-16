@@ -48,6 +48,15 @@ Para corregir: anular y volver a capturar. Las solicitudes de anulación que ya 
 
 **Base de datos:** las instalaciones nuevas ya traen las columnas. Una base que ya exista necesita `backend/migrations/003_anulaciones.sql` una vez, antes de activar esta versión (solo agrega columnas, no cambia datos).
 
+## 5. Anulaciones en un día que ya tiene corte de caja
+
+- El corte guardado (esperado, contado y diferencia) no se modifica. El ajuste solo se calcula al mostrar la pantalla.
+- En Caja, el corte afectado lleva la etiqueta «Corrección posterior» y la tarjeta «Cortes con corrección posterior» lista cada movimiento anulado después del corte: quién lo anuló, fecha y hora, motivo y su efecto en el esperado.
+- Se muestran «Esperado en el corte», «Movimientos anulados después», «Esperado ajustado», «Contado (sin cambio)» y «Diferencia ajustada» para conciliar.
+- Cuenta: abonos en efectivo, entradas y salidas manuales de caja y egresos pagados con la caja de la sucursal, anulados después de guardar el corte.
+- No se crea ninguna entrada ni salida de efectivo. Los reportes ya excluían una sola vez los movimientos anulados; el corte histórico conserva su valor original y el ajuste solo aparece junto a él, así que no hay doble descuento.
+- Si se vuelve a guardar el corte de ese día, el nuevo esperado ya no incluye lo anulado y el aviso desaparece.
+
 ## Verificación local (PHP 8.3 + MariaDB 10.11)
 
 - `php backend/tests/integration.php`: 123 comprobaciones, 26 nuevas (transferencias, anulaciones, saldos, sección de Dirección, permisos).
