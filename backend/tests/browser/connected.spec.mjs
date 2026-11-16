@@ -157,6 +157,15 @@ test('edited uncertain submission cannot create a second expense',async({page},i
  await page.route('**/index.php?action=expense.create',async route=>{if(!lost){lost=true;await route.fetch();await route.abort('failed');}else await route.continue();});await page.locator('#modal button.primary').click();await page.waitForFunction(()=>!BT.busy);await expect(page.locator('#modal')).not.toHaveClass(/hidden/);
  await page.locator('#e_monto').fill('28.00');await page.locator('#modal button.primary').click();await expect(page.locator('#modal')).toHaveClass(/hidden/);await page.waitForFunction(()=>!BT.busy);expect(await page.evaluate(t=>S.egresos.filter(e=>e.concepto===t).map(e=>e.monto),concept)).toEqual([18]);
 });
+test('a different expense after an uncertain saved one is stored too, never lost',async({page},info)=>{
+ await login(page);await navigate(page,'gastos');const first='Incierto guardado '+info.project.name+' '+Date.now(),second='Segundo distinto '+info.project.name+' '+Date.now();let lost=false;const dialogs=[];
+ page.on('dialog',d=>{dialogs.push(d.message());d.accept();});
+ await page.route('**/index.php?action=expense.create',async route=>{if(!lost){lost=true;await route.fetch();await route.abort('failed');}else await route.continue();});
+ await page.getByRole('button',{name:'+ Registrar gasto',exact:true}).click();await page.locator('#e_concepto').fill(first);await page.locator('#e_monto').fill('15000.00');await page.locator('#modal button.primary').click();await page.waitForFunction(()=>!BT.busy);await expect(page.locator('#modal')).not.toHaveClass(/hidden/);
+ await page.locator('#modal').getByRole('button',{name:'✕',exact:true}).click();
+ await page.getByRole('button',{name:'+ Registrar gasto',exact:true}).click();await page.locator('#e_concepto').fill(second);await page.locator('#e_monto').fill('800.00');await page.locator('#modal button.primary').click();await expect(page.locator('#modal')).toHaveClass(/hidden/);await page.waitForFunction(()=>!BT.busy);
+ expect(await page.evaluate(([a,b])=>[S.egresos.filter(e=>e.concepto===a).map(e=>e.monto),S.egresos.filter(e=>e.concepto===b).map(e=>e.monto)],[first,second])).toEqual([[15000],[800]]);
+});
 test('supplier invoice, received stock and card financing remain separate',async({page},info)=>{
  await login(page,'finanzas');await navigate(page,'proveedores');
  await page.getByRole('button',{name:'+ Registrar factura pendiente',exact:true}).click();

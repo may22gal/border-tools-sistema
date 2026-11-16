@@ -19,17 +19,30 @@ const BT = {
   },
   receipts() {try{return JSON.parse(sessionStorage.getItem(this.pendingStorage)||'{}');}catch{return {};}},
   saveReceipts(value) {sessionStorage.setItem(this.pendingStorage,JSON.stringify(value));},
-  async receipt(action,data) {
+  async receipt(action,data,label='') {
     const bytes=new TextEncoder().encode(JSON.stringify([action,data]));
     const digest=await crypto.subtle.digest('SHA-256',bytes);
     const fingerprint=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
-    const entries=this.receipts();
+    let entries=this.receipts();
+    // The same capture sent again keeps its key: the server stores it at most once.
     if(entries[fingerprint])return {fingerprint,...entries[fingerprint]};
-    // An uncertain submission keeps its key even if the form is edited or reopened.
-    // The server can commit one payload for that key, never a second payment.
+    // A different capture of the same kind while an earlier send is uncertain:
+    // ask the server first, so neither a duplicate nor a lost movement is possible.
     const pending=Object.entries(entries).find(([,entry])=>entry.action===action);
-    if(pending)return {fingerprint:pending[0],...pending[1]};
-    entries[fingerprint]={key:crypto.randomUUID(),action};this.saveReceipts(entries);
+    if(pending){
+      const [previousFp,previous]=pending;let status;
+      try{status=await this.request('request.status&key='+previous.key);}
+      catch{throw Object.assign(new Error('No se pudo comprobar si el envío anterior quedó guardado. Tu captura sigue abierta; reintenta cuando vuelva internet.'),{checkFailed:true});}
+      if(!status.confirmed){
+        // The server never stored the earlier send: this capture replaces it under the same key.
+        entries=this.receipts();delete entries[previousFp];entries[fingerprint]={...previous,label};this.saveReceipts(entries);
+        return {fingerprint,...entries[fingerprint]};
+      }
+      this.removeReceipt(previousFp);
+      const distinct=confirm('El movimiento anterior'+(previous.label?' ('+previous.label+')':'')+' sí quedó guardado.\n\n¿Lo que capturaste ahora es un movimiento distinto que también quieres guardar?\n\nAceptar: guardarlo también.\nCancelar: no guardar nada más.');
+      if(!distinct)return {alreadySaved:true};
+    }
+    entries=this.receipts();entries[fingerprint]={key:crypto.randomUUID(),action,label};this.saveReceipts(entries);
     return {fingerprint,...entries[fingerprint]};
   },
   removeReceipt(fp) {const r=this.receipts();delete r[fp];this.saveReceipts(r);},
@@ -58,7 +71,17 @@ const BT = {
   },
   async sync(force=false) {
     if(this.syncing||(!force&&(this.busy||!this.user||document.getElementById('sidebar').classList.contains('open')||!document.getElementById('modal').classList.contains('hidden'))))return;
-    this.syncing=true;try{const packet=await this.request('state');if(force||(!this.busy&&document.getElementById('modal').classList.contains('hidden')&&!document.getElementById('sidebar').classList.contains('open')))this.apply(packet);}finally{this.syncing=false;}
+    this.syncing=true;try{const packet=await this.request('state');if(force||(!this.busy&&document.getElementById('modal').classList.contains('hidden')&&!document.getElementById('sidebar').classList.contains('open'))){
+      // Repaint only when the shared data changed, and never under a field the person is using.
+      // Buttons on the screen point to rows of the data they were drawn from, so data and screen change together.
+      const snapshot=JSON.stringify(packet);if(!force&&snapshot===this.lastSnapshot&&!this.repaintPending)return;
+      if(!force&&this.editingView()){this.repaintPending=true;return;}
+      this.lastSnapshot=snapshot;this.repaintPending=false;this.apply(packet);
+    }}finally{this.syncing=false;}
+  },
+  editingView() {
+    const el=document.activeElement,view=document.getElementById('view');
+    return !!(el&&view&&view.contains(el)&&(['INPUT','SELECT','TEXTAREA'].includes(el.tagName)||el.isContentEditable));
   },
   capture() {
     this.records.clear();for(const key of ARRAY_KEYS)for(let i=0;i<(S[key]||[]).length;i++)this.records.set(key+':'+i,structuredClone(S[key][i]));
@@ -70,14 +93,19 @@ const BT = {
     const buttons=[...document.querySelectorAll('#modal button,.orden-actions button,.btn-row button')];const states=buttons.map(b=>b.disabled);buttons.forEach(b=>b.disabled=true);
     let receipt,committed=false;
     try{
-      receipt=await this.receipt(action,data);
+      const label=[data?.concepto||data?.cliente||data?.proveedor||data?.folio||'',data?.monto!==undefined&&data?.monto!==''?new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(data.monto)):''].filter(Boolean).join(' · ');
+      receipt=await this.receipt(action,data,label);
+      if(receipt.alreadySaved){receipt=null;this.apply(await this.request('state'),false);if(close)closeModal();render(roleHas(page)?page:'home');toast('El movimiento anterior ya estaba guardado. No se guardó nada más.');return true;}
       await this.request(action,data,receipt.key);committed=true;
       // A confirmed write and a refreshed authoritative state are both required before closing.
       const packet=await this.request('state');this.apply(packet,false);
       this.removeReceipt(receipt.fingerprint);if(close)closeModal();if(after)after();render(roleHas(page)?page:'home');if(after)after(true);toast(message);return true;
     }catch(e){
+      if(e.checkFailed){toast(e.message);return false;}
       if(receipt&&e.status===409){
-        try{const status=await this.request('request.status&key='+receipt.key);if(status.confirmed){committed=true;this.apply(await this.request('state'),false);this.removeReceipt(receipt.fingerprint);if(close)closeModal();render(roleHas(page)?page:'home');toast('El envío anterior ya estaba guardado. Se actualizaron sus datos; no se creó otro movimiento.');return true;}}catch{toast('No se pudo comprobar el envío anterior. Conserva la captura y reintenta con conexión.');return false;}
+        try{const status=await this.request('request.status&key='+receipt.key);if(status.confirmed){
+          // Only possible when an earlier, different send landed first. This capture was NOT stored: keep it open.
+          this.removeReceipt(receipt.fingerprint);await this.syncConflict();toast('El envío anterior sí quedó guardado, pero esta captura todavía no. Revisa la lista y, si es otro movimiento, presiona guardar de nuevo.');return false;}}catch{toast('No se pudo comprobar el envío anterior. Conserva la captura y reintenta con conexión.');return false;}
       }
       if(receipt&&e.status&&e.status<500)this.removeReceipt(receipt.fingerprint);
       if(e.status===409){await this.syncConflict();}
@@ -215,5 +243,7 @@ setInterval(()=>BT.sync().then(()=>BT.recover()).catch(()=>{}),5000);
 window.addEventListener('focus',()=>{BT.sync().then(()=>BT.recover()).catch(()=>{});});
 window.addEventListener('online',()=>{BT.sync().then(()=>BT.recover()).catch(()=>{});});
 document.getElementById('modal').addEventListener('input',()=>{BT.dirty=true;});
+// Newer data that arrived while someone was using a field is shown shortly after they leave it.
+document.getElementById('view').addEventListener('focusout',()=>{setTimeout(()=>{if(BT.repaintPending&&!BT.editingView())BT.sync().catch(()=>{});},1500);});
 window.addEventListener('beforeunload',e=>{if(BT.busy||BT.dirty||Object.keys(BT.receipts()).length){e.preventDefault();e.returnValue='';}});
 (async()=>{try{BT.csrf=(await BT.request('csrf')).csrf;const p=await BT.request('state');if(sessionStorage.getItem('bt_receipt_owner')&&sessionStorage.getItem('bt_receipt_owner')!==p.user.id)BT.saveReceipts({});sessionStorage.setItem('bt_receipt_owner',p.user.id);BT.apply(p);document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden');await BT.recover();}catch(e){if(e.status!==401)toast(e.message||'No se pudo conectar al servidor.');}})();
