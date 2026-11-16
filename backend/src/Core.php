@@ -58,6 +58,7 @@ final class Policy {
         return $allowed && ($this->user['role']==='direccion'||($this->flags[self::MODULES[$p]??'']??true)!==false);
     }
     public function demand(string $p): void { requireThat($this->page($p),'Access denied',403); }
+    public function can(string $a): bool { try{$this->action($a);return true;}catch(Problem){return false;} }
     public function action(string $a): void {
         $roles=match($a){'approve','settings'=>['direccion'],'credit'=>['direccion','finanzas','facturacion'],'expense','cash','balance'=>['direccion','finanzas'],'sale'=>['direccion','ventas_g','ventas_t','finanzas'],default=>[]};
         requireThat(in_array($this->user['role'],$roles,true),'Action denied',403);
@@ -78,7 +79,7 @@ final class Repo {
         if(isset($x['sucursal']))$this->policy->branch($x['sucursal']);return $x;
     }
     public function all(string $t): array {
-        $this->table($t); $where=$t==='saldos'?'archived=0':'1=1'; $rows=$this->db->query("SELECT * FROM `$t` WHERE $where ORDER BY `_createdAt` DESC,id")->fetchAll();
+        $this->table($t); $where=$t==='saldos'?'archived=0':(in_array($t,['cobranzas','compras','cajaMovimientos'],true)?'anulado=0':'1=1'); $rows=$this->db->query("SELECT * FROM `$t` WHERE $where ORDER BY `_createdAt` DESC,id")->fetchAll();
         return array_values(array_filter($rows,function($x){try{if(isset($x['sucursal']))$this->policy->branch($x['sucursal']);return true;}catch(Problem){return false;}}));
     }
     public function insert(string $t,array $d): array {

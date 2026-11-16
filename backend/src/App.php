@@ -46,6 +46,11 @@ final class App {
             'cash.close'=>'Corte Caja 1 · '.($x['sucursal']??'').' · diferencia '.($x['diferencia']??''),
             'cash.movement'=>'Movimiento de caja · '.($x['concepto']??''),
             'settings.update'=>'Configuración del sistema actualizada',
+            'transfer.decide'=>'Transferencia '.(($x['transferenciaStatus']??'')==='Aprobada'?'confirmada':'rechazada').' · '.($x['cliente']??$x['fecha']??''),
+            'expense.void'=>'Anuló egreso · '.($x['concepto']??''),
+            'payment.void'=>'Anuló abono '.($x['monto']??'').' · '.($x['cliente']??''),
+            'supplier.voidInvoice'=>'Anuló factura de proveedor · '.($x['folio']??'').' '.($x['proveedor']??''),
+            'cash.voidMovement'=>'Anuló movimiento de caja · '.($x['concepto']??''),
             'service.create'=>'Orden '.($x['folio']??'').' recibida · '.($x['cliente']??''),
             default=>str_starts_with($event['action'],'service.')?'Servicio '.($x['folio']??'').' · '.($x['estado']??'actualizado'):'Registro actualizado · '.($x['concepto']??$x['nombre']??$x['producto']??$x['folio']??''),
         };return $text;
@@ -78,7 +83,21 @@ final class App {
         if($this->p->user['role']==='direccion'){
             $q=$this->db->prepare('SELECT n.id,n.texto,n.orden,n.created_at AS ts,u.display_name AS `by`,(r.user_id IS NOT NULL) AS `read` FROM notifications n JOIN users u ON u.id=n.user_id LEFT JOIN notification_reads r ON r.notification_id=n.id AND r.user_id=? ORDER BY n.created_at DESC LIMIT 50');$q->execute([$this->p->user['id']]);$s['notifications']=$q->fetchAll();
         }
+        $s['ownerLog']=$this->p->user['role']==='direccion'?$this->ownerLog():[];
         return ['permissions'=>array_values(array_filter(Policy::PAGES['direccion'],fn($page)=>$this->p->page($page))),'settingsVersion'=>(int)$this->db->query('SELECT version FROM app_settings WHERE id=1')->fetchColumn(),'state'=>$s,'user'=>$this->p->user,'branches'=>$this->p->branches,'revision'=>(int)$this->db->query('SELECT COALESCE(MAX(seq),0) FROM change_log')->fetchColumn()];
+    }
+    // Read-only record for the owner: every void and transfer confirmation, with who, when and why.
+    public const OWNER_ACTIONS=['expense.void','expense.resolveVoid','payment.void','supplier.voidInvoice','cash.voidMovement','transfer.decide','transfer.confirmAtCapture'];
+    private function ownerLog(): array {
+        $marks=implode(',',array_fill(0,count(self::OWNER_ACTIONS),'?'));
+        $q=$this->db->prepare("SELECT c.action,c.entity,c.created_at,c.branch_name,c.after_data,u.display_name FROM change_log c JOIN users u ON u.id=c.user_id WHERE c.action IN ($marks) ORDER BY c.seq DESC LIMIT 300");$q->execute(self::OWNER_ACTIONS);$out=[];
+        foreach($q as $r){$x=json_decode($r['after_data']??'null',true)??[];
+            if($r['action']==='expense.resolveVoid'&&empty($x['anulado']))continue;
+            $monto=match($r['entity']){'ventas'=>$x['transferencia']??$x['monto']??'','cajaMovimientos'=>(float)($x['entrada']??0)>0?$x['entrada']:($x['salida']??''),default=>$x['monto']??''};
+            $tipo=match($r['action']){'transfer.decide'=>(($x['transferenciaStatus']??'')==='Aprobada'?'Transferencia confirmada':'Transferencia rechazada'),'transfer.confirmAtCapture'=>'Transferencia capturada como confirmada','payment.void'=>'Abono anulado','supplier.voidInvoice'=>'Factura de proveedor anulada','cash.voidMovement'=>'Movimiento de caja anulado',default=>'Egreso anulado'};
+            $detalle=trim(implode(' · ',array_filter([$x['concepto']??null,$x['cliente']??null,isset($x['folio'])?'Factura '.$x['folio'].' '.($x['proveedor']??''):null,$r['entity']==='ventas'?'Corte del '.($x['fecha']??''):null,($x['fecha']??null)&&$r['entity']!=='ventas'?'Fecha '.$x['fecha']:null])));
+            $out[]=['ts'=>$r['created_at'],'usuario'=>$r['display_name'],'tipo'=>$tipo,'detalle'=>$detalle,'monto'=>(string)$monto,'sucursal'=>$r['branch_name']??'','motivo'=>(string)($x['motivoAnulacion']??'')];
+        }return $out;
     }
     public function receipt(string $key): array {
         requireThat((bool)preg_match('/^[a-zA-Z0-9_-]{16,100}$/D',$key),'Invalid receipt');
@@ -116,7 +135,8 @@ final class App {
         return match($a){
             'sales.save'=>$this->sale($d),'credit.assign'=>$this->assign($d),'credit.create'=>$this->manualCredit($d),'credit.payment'=>$this->creditPayment($d,false),'b2b.payment'=>$this->creditPayment($d,true),
             'transfer.decide'=>$this->transfer($d),'payment.correctMethod'=>$this->correctMethod($d),
-            'expense.create'=>$this->expense($d),'expense.edit'=>$this->expenseEdit($d),'expense.settle'=>$this->settle($d),'expense.requestVoid'=>$this->requestVoid($d),'expense.resolveVoid'=>$this->void($d),
+            'expense.create'=>$this->expense($d),'expense.edit'=>$this->expenseEdit($d),'expense.settle'=>$this->settle($d),'expense.requestVoid'=>$this->requestVoid($d),'expense.resolveVoid'=>$this->void($d),'expense.void'=>$this->voidDirect($d),
+            'payment.void'=>$this->voidPayment($d),'supplier.voidInvoice'=>$this->voidInvoice($d),'cash.voidMovement'=>$this->voidCashMovement($d),
             'payroll.pay'=>$this->pay($d),'cash.movement'=>$this->cashMovement($d),'cash.close'=>$this->cashClose($d),
             'service.create'=>$this->serviceCreate($d),'service.transition'=>$this->serviceTransition($d),
             'inventory.move'=>$this->inventory($d),'stock.save'=>$this->stock($d),'balance.save'=>$this->balance($d),'balance.remove'=>$this->removeBalance($d),
@@ -131,9 +151,17 @@ final class App {
         foreach(['efectivo','transferencia','tarjeta','cheque','credito','manoObra','totalVentaSicar'] as $k){$v[$k]=Money::decimal(Money::cents($v[$k]??0));requireThat(Money::cents($v[$k])>=0,'Negative sales amount');}
         requireThat(Money::cents($v['totalVentaSicar'])>0&&Money::cents($v['manoObra'])<=Money::cents($v['totalVentaSicar']),'Invalid SICAR total');
         $v['responsable']=$this->p->user['display_name'];$v['transferenciaStatus']=$d['transferenciaStatus']??'Aprobada';requireThat(in_array($v['transferenciaStatus'],['Aprobada','Pendiente'],true),'Invalid transfer status');
+        // Only whoever runs the cash may mark a transfer as confirmed; everyone else captures it as pending.
+        if(!$this->p->can('cash'))$v['transferenciaStatus']='Pendiente';
         if(!empty($v['evidenciaId'])){$q=$this->db->prepare('SELECT branch_name,original_name FROM evidence WHERE id=?');$q->execute([$v['evidenciaId']]);$e=$q->fetch();requireThat($e&&$e['branch_name']===$v['sucursal'],'Invalid evidence');$v['sicarArchivo']=$e['original_name'];}
-        if(isset($d['id'])){$x=$this->old('ventas',$d);requireThat($x['sucursal']===$v['sucursal']&&$x['fecha']===$v['fecha'],'Cannot change cut identity');requireThat(Money::cents($v['credito'])>=Money::cents($x['creditoAsignado']),'Credit already assigned');return $this->edit('ventas',$x,$v,$d['version'],'sales.replace');}
-        return $this->add('ventas',$v,'sales.create');
+        if(isset($d['id'])){$x=$this->old('ventas',$d);requireThat($x['sucursal']===$v['sucursal']&&$x['fecha']===$v['fecha'],'Cannot change cut identity');requireThat(Money::cents($v['credito'])>=Money::cents($x['creditoAsignado']),'Credit already assigned');
+            // Replacing a cut without changing the transfer keeps its decision; a changed amount needs a new one.
+            $sameTransfer=Money::cents($v['transferencia'])===Money::cents($x['transferencia']);
+            if($sameTransfer&&!$this->p->can('cash')&&in_array($x['transferenciaStatus'],['Aprobada','Rechazada'],true))$v['transferenciaStatus']=$x['transferenciaStatus'];
+            $n=$this->edit('ventas',$x,$v,$d['version'],'sales.replace');
+            if($n['transferenciaStatus']==='Aprobada'&&Money::cents($n['transferencia'])>0&&($x['transferenciaStatus']!=='Aprobada'||!$sameTransfer))$this->audit('transfer.confirmAtCapture','ventas',null,$n);
+            return $n;}
+        $n=$this->add('ventas',$v,'sales.create');if($n['transferenciaStatus']==='Aprobada'&&Money::cents($n['transferencia'])>0)$this->audit('transfer.confirmAtCapture','ventas',null,$n);return $n;
     }
     private function clientCredits(array $c): array {
         $q=$this->db->prepare('SELECT * FROM creditos WHERE sucursal=? AND (clienteId=? OR (clienteId IS NULL AND cliente=?))');$q->execute([$c['sucursal'],$c['id'],$c['nombre']]);return $q->fetchAll();
@@ -185,16 +213,16 @@ final class App {
         if($b2b)requireThat(!$this->clientCredits($x),'Apply payment to existing credit',409);
         $m=Money::cents(Money::positive($d['monto']??0));requireThat($m<=Money::cents($x['saldo']),'Payment exceeds balance',409);$this->required($d,['fecha','metodo']);if(!$b2b)requireThat($d['fecha'] >= $x['fecha'],'Payment predates credit');
         $v=['fecha'=>$d['fecha'],'creditoId'=>$b2b?null:$x['id'],'clienteId'=>$b2b?$x['id']:$x['clienteId'],'cliente'=>$b2b?$x['nombre']:$x['cliente'],'sucursal'=>$x['sucursal'],'metodo'=>$d['metodo'],'monto'=>Money::decimal($m)];
-        requireThat(in_array($v['metodo'],Finance::METHODS,true),'Invalid payment method');if($v['metodo']==='Transferencia'){$v['transferenciaStatus']=$d['transferenciaStatus']??'Aprobada';requireThat(in_array($v['transferenciaStatus'],['Aprobada','Pendiente'],true),'Invalid transfer status');}
-        $n=$this->add('cobranzas',$v,'credit.payment');$changes=['saldo'=>Money::decimal(Money::cents($x['saldo'])-$m)];if(!$b2b)$changes['estado']=Money::cents($changes['saldo'])>0?'Pendiente':'Pagado';$this->edit($b2b?'clientesB2B':'creditos',$x,$changes,$d['version'],'credit.payment');
+        requireThat(in_array($v['metodo'],Finance::METHODS,true),'Invalid payment method');if($v['metodo']==='Transferencia'){$v['transferenciaStatus']=$d['transferenciaStatus']??'Aprobada';requireThat(in_array($v['transferenciaStatus'],['Aprobada','Pendiente'],true),'Invalid transfer status');if(!$this->p->can('cash'))$v['transferenciaStatus']='Pendiente';}
+        $n=$this->add('cobranzas',$v,'credit.payment');if($v['metodo']==='Transferencia'&&$n['transferenciaStatus']==='Aprobada')$this->audit('transfer.confirmAtCapture','cobranzas',null,$n);$changes=['saldo'=>Money::decimal(Money::cents($x['saldo'])-$m)];if(!$b2b)$changes['estado']=Money::cents($changes['saldo'])>0?'Pendiente':'Pagado';$this->edit($b2b?'clientesB2B':'creditos',$x,$changes,$d['version'],'credit.payment');
         if(!$b2b){$id=$x['clienteId'];if(!$id){$q=$this->db->prepare('SELECT id FROM clientesB2B WHERE nombre=? AND sucursal=?');$q->execute([$x['cliente'],$x['sucursal']]);$ids=$q->fetchAll(PDO::FETCH_COLUMN);$id=count($ids)===1?$ids[0]:null;}$this->syncClient($id);}return $n;
     }
     private function transfer(array $d): array {
-        $this->p->action('approve');$t=($d['tipo']??'')==='venta'?'ventas':'cobranzas';$this->p->demand($t==='ventas'?'ventas':'credito');$x=$this->old($t,$d);
+        $this->p->action('cash');$t=($d['tipo']??'')==='venta'?'ventas':'cobranzas';$this->p->demand($t==='ventas'?'ventas':'credito');$x=$this->old($t,$d);requireThat($t==='ventas'||!$x['anulado'],'Payment was voided',409);
         requireThat($t==='ventas'?Money::cents($x['transferencia'])>0:$x['metodo']==='Transferencia','Not a transfer');requireThat(is_bool($d['approved']??null),'Decision required');if($t==='cobranzas')$this->adjustCollection($x,$x['transferenciaStatus']==='Rechazada',!$d['approved']);return $this->edit($t,$x,['transferenciaStatus'=>$d['approved']?'Aprobada':'Rechazada'],$d['version'],'transfer.decide');
     }
     private function correctMethod(array $d): array {
-        $this->p->action('credit');$this->p->demand('credito');$x=$this->old('cobranzas',$d);requireThat(in_array($d['metodo']??'',Finance::METHODS,true),'Invalid method');$v=['metodoOriginal'=>$x['metodo'],'metodo'=>$d['metodo']];if($d['metodo']==='Transferencia')$v['transferenciaStatus']='Pendiente';$this->adjustCollection($x,$x['metodo']==='Transferencia'&&$x['transferenciaStatus']==='Rechazada',false);return $this->edit('cobranzas',$x,$v,$d['version'],'payment.correctMethod');
+        $this->p->action('credit');$this->p->demand('credito');$x=$this->old('cobranzas',$d);requireThat(!$x['anulado'],'Payment was voided',409);requireThat(in_array($d['metodo']??'',Finance::METHODS,true),'Invalid method');$v=['metodoOriginal'=>$x['metodo'],'metodo'=>$d['metodo']];if($d['metodo']==='Transferencia')$v['transferenciaStatus']='Pendiente';$this->adjustCollection($x,$x['metodo']==='Transferencia'&&$x['transferenciaStatus']==='Rechazada',false);return $this->edit('cobranzas',$x,$v,$d['version'],'payment.correctMethod');
     }
     private function expense(array $d): array {
         $this->p->action('expense');$g=$d['grupo']??'gastos';requireThat(in_array($g,['gastos','proveedores'],true),'Use payroll operation');$this->p->demand($g);$this->required($d,['fecha','sucursal','concepto','categoria']);if($g==='proveedores')$this->required($d,['proveedor']);
@@ -223,7 +251,33 @@ final class App {
         $this->p->action('approve');$x=$this->old('egresos',$d);$this->expensePage($x);$this->canVoid($x);requireThat(is_bool($d['approved']??null),'Decision required');
         $q=$this->db->prepare('INSERT INTO expense_approvals(expense_id,state,requested_by,resolved_by,resolved_at) VALUES (?,?,?,?,UTC_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE state=VALUES(state),resolved_by=VALUES(resolved_by),resolved_at=VALUES(resolved_at)');$q->execute([$x['id'],$d['approved']?'Aprobada':'Rechazada',$this->p->user['id'],$this->p->user['id']]);
         $v=['monto'=>$x['monto']];if($d['approved']){$v['anulado']=true;$v['fechaAnulacion']=gmdate('Y-m-d H:i:s');}$n=$this->edit('egresos',$x,$v,$d['version'],'expense.resolveVoid');
-        if($d['approved']&&!empty($x['origenId'])&&in_array($x['grupo'],['nomina','comisiones'],true)){$t=$x['grupo'];$doc=$this->r->get($t,$x['origenId'],true);$q=$this->db->prepare('SELECT fecha FROM egresos WHERE origenId=? AND anulado=0 ORDER BY fecha DESC LIMIT 1');$q->execute([$x['origenId']]);$date=$q->fetchColumn();$v=$t==='nomina'?['ultimoPago'=>$date?:null,'estado'=>$date?'Pagado':'Activo']:['fechaPago'=>$date?:null,'estado'=>$date?'Pagada':'Pendiente'];$this->edit($t,$doc,$v,(int)$doc['_version'],'expense.reverseLinkedPayment');}return $n;
+        if($d['approved'])$this->reverseLinkedPayment($x);return $n;
+    }
+    private function reverseLinkedPayment(array $x): void {
+        if(!empty($x['origenId'])&&in_array($x['grupo'],['nomina','comisiones'],true)){$t=$x['grupo'];$doc=$this->r->get($t,$x['origenId'],true);$q=$this->db->prepare('SELECT fecha FROM egresos WHERE origenId=? AND anulado=0 ORDER BY fecha DESC LIMIT 1');$q->execute([$x['origenId']]);$date=$q->fetchColumn();$v=$t==='nomina'?['ultimoPago'=>$date?:null,'estado'=>$date?'Pagado':'Activo']:['fechaPago'=>$date?:null,'estado'=>$date?'Pagada':'Pendiente'];$this->edit($t,$doc,$v,(int)$doc['_version'],'expense.reverseLinkedPayment');}
+    }
+    private function motivo(array $d): string {$m=trim(is_string($d['motivo']??null)?$d['motivo']:'');requireThat($m!==''&&strlen($m)<=500,'Void reason required');return $m;}
+    private function voided(string $motivo): array {return ['anulado'=>true,'fechaAnulacion'=>gmdate('Y-m-d H:i:s'),'motivoAnulacion'=>$motivo];}
+    // Whoever runs the cash voids directly, with a mandatory reason; the owner sees it afterwards. No approval step.
+    private function voidDirect(array $d): array {
+        $this->p->action('cash');$this->p->action('expense');$x=$this->old('egresos',$d);$this->expensePage($x);$this->canVoid($x);$m=$this->motivo($d);
+        $q=$this->db->prepare("INSERT INTO expense_approvals(expense_id,state,requested_by,resolved_by,resolved_at) VALUES (?,'Aprobada',?,?,UTC_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE state='Aprobada',resolved_by=VALUES(resolved_by),resolved_at=VALUES(resolved_at)");$q->execute([$x['id'],$this->p->user['id'],$this->p->user['id']]);
+        $n=$this->edit('egresos',$x,['monto'=>$x['monto']]+$this->voided($m),$d['version'],'expense.void');$this->reverseLinkedPayment($x);return $n;
+    }
+    private function voidPayment(array $d): array {
+        $this->p->action('cash');$this->p->demand('credito');$x=$this->old('cobranzas',$d);requireThat(!$x['anulado'],'Already voided',409);$m=$this->motivo($d);
+        // The debt comes back exactly once; a rejected transfer already restored it.
+        $this->adjustCollection($x,$x['metodo']==='Transferencia'&&$x['transferenciaStatus']==='Rechazada',true);
+        return $this->edit('cobranzas',$x,$this->voided($m),$d['version'],'payment.void');
+    }
+    private function voidInvoice(array $d): array {
+        $this->p->action('cash');$this->p->action('expense');$this->p->demand('proveedores');$x=$this->old('compras',$d);requireThat((bool)$x['facturaRegistrada']&&!$x['anulado'],'Invalid supplier invoice',409);$m=$this->motivo($d);
+        $q=$this->db->prepare('SELECT COUNT(*) FROM egresos WHERE compraId=? AND anulado=0');$q->execute([$x['id']]);requireThat((int)$q->fetchColumn()===0,'Void the supplier payments first',409);
+        return $this->edit('compras',$x,$this->voided($m),$d['version'],'supplier.voidInvoice');
+    }
+    private function voidCashMovement(array $d): array {
+        $this->p->action('cash');$this->p->demand('caja');$x=$this->old('cajaMovimientos',$d);requireThat(!$x['anulado'],'Already voided',409);$m=$this->motivo($d);
+        return $this->edit('cajaMovimientos',$x,$this->voided($m),$d['version'],'cash.voidMovement');
     }
     private function pay(array $d): array {
         $this->p->action('expense');$t=$d['tipo']??'';requireThat(in_array($t,['nomina','comisiones'],true),'Invalid payroll type');$this->p->demand($t);$x=$this->old($t,$d);$this->required($d,['fecha','periodo']);$m=Money::positive($d['monto']??0);
@@ -324,7 +378,7 @@ final class App {
         $v['folio']=trim($v['folio']);$v['proveedor']=trim($v['proveedor']);
         requireThat(empty($v['vencimiento'])||$v['vencimiento'] >= $v['fecha'],'Due date precedes invoice');
         $v['monto']=Money::positive($d['monto']);$v['facturaRegistrada']=true;
-        $q=$this->db->prepare('SELECT id FROM compras WHERE facturaRegistrada=1 AND folio=? AND proveedor=? AND sucursal=?');
+        $q=$this->db->prepare('SELECT id FROM compras WHERE facturaRegistrada=1 AND anulado=0 AND folio=? AND proveedor=? AND sucursal=?');
         $q->execute([$v['folio'],$v['proveedor'],$v['sucursal']]);requireThat(!$q->fetchColumn(),'Invoice already registered for this supplier and branch',409);
         if(isset($d['id'])){
             $x=$this->old('compras',$d);requireThat(!$x['facturaRegistrada'],'Invoice already registered',409);
@@ -337,7 +391,7 @@ final class App {
     }
     private function supplierPay(array $d): array {
         $this->p->action('expense');$this->p->demand('proveedores');$x=$this->old('compras',$d);
-        requireThat((bool)$x['facturaRegistrada'],'Register invoice first');$this->required($d,['fecha']);
+        requireThat((bool)$x['facturaRegistrada']&&!$x['anulado'],'Register invoice first');$this->required($d,['fecha']);
         requireThat($d['fecha'] >= $x['fecha'],'Payment predates invoice');
         $q=$this->db->prepare('SELECT COALESCE(SUM(monto),0) FROM egresos WHERE compraId=? AND anulado=0');$q->execute([$x['id']]);
         $m=Money::cents(Money::positive($d['monto']??0));
@@ -347,7 +401,7 @@ final class App {
         $n=$this->add('egresos',$v,'supplier.pay');
         $this->edit('compras',$x,['monto'=>$x['monto']],$d['version'],'supplier.pay');return $n;
     }
-    private function receive(array $d): array {$this->p->demand('compras');$x=$this->old('compras',$d);requireThat($x['estado']==='En tránsito','Already received',409);$this->required($d,['entrega']);return $this->edit('compras',$x,['estado'=>'Recibida','entrega'=>$d['entrega']],$d['version'],'purchase.receive');}
+    private function receive(array $d): array {$this->p->demand('compras');$x=$this->old('compras',$d);requireThat($x['estado']==='En tránsito'&&!$x['anulado'],'Already received',409);$this->required($d,['entrega']);return $this->edit('compras',$x,['estado'=>'Recibida','entrega'=>$d['entrega']],$d['version'],'purchase.receive');}
     private function deactivate(array $d): array {$this->p->action('approve');$this->p->demand('gastos');$x=$this->old('categoriasGastos',$d);requireThat($x['nombre']!=='Otros','Cannot deactivate Otros');return $this->edit('categoriasGastos',$x,['activo'=>false],$d['version'],'category.deactivate');}
     private function settings(array $d): array {
         $this->p->action('settings');$this->p->demand('permisos');$q=$this->db->query('SELECT config,version FROM app_settings WHERE id=1 FOR UPDATE');$x=$q->fetch();requireThat(($d['version']??null)===(int)$x['version'],'Settings changed',409);$v=json_decode($x['config'],true,512,JSON_THROW_ON_ERROR);

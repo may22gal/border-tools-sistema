@@ -174,6 +174,7 @@ CREATE TABLE `egresos` (
   `empleadoId` VARCHAR(64) NULL,
   `periodo` VARCHAR(255) NOT NULL DEFAULT '',
   `compraId` VARCHAR(64) NULL,
+  `motivoAnulacion` TEXT NULL,
   INDEX (`sucursal`),
   INDEX (`fecha`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -223,6 +224,9 @@ CREATE TABLE `compras` (
   `entrega` DATE NULL,
   `facturaRegistrada` BOOLEAN NOT NULL DEFAULT FALSE,
   `vencimiento` DATE NULL,
+  `anulado` BOOLEAN NOT NULL DEFAULT FALSE,
+  `fechaAnulacion` DATETIME(6) NULL,
+  `motivoAnulacion` TEXT NULL,
   INDEX (`sucursal`),
   INDEX (`fecha`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -272,6 +276,9 @@ CREATE TABLE `cobranzas` (
   `transferenciaStatus` VARCHAR(255) NOT NULL DEFAULT '',
   `monto` DECIMAL(18,2) NOT NULL DEFAULT 0,
   `metodoOriginal` VARCHAR(255) NOT NULL DEFAULT '',
+  `anulado` BOOLEAN NOT NULL DEFAULT FALSE,
+  `fechaAnulacion` DATETIME(6) NULL,
+  `motivoAnulacion` TEXT NULL,
   INDEX (`sucursal`),
   INDEX (`fecha`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -322,6 +329,9 @@ CREATE TABLE `cajaMovimientos` (
   `concepto` VARCHAR(255) NOT NULL DEFAULT '',
   `entrada` DECIMAL(18,2) NOT NULL DEFAULT 0,
   `salida` DECIMAL(18,2) NOT NULL DEFAULT 0,
+  `anulado` BOOLEAN NOT NULL DEFAULT FALSE,
+  `fechaAnulacion` DATETIME(6) NULL,
+  `motivoAnulacion` TEXT NULL,
   INDEX (`sucursal`),
   INDEX (`fecha`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

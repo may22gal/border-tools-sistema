@@ -39,10 +39,12 @@ const BT = {
         return {fingerprint,...entries[fingerprint]};
       }
       this.removeReceipt(previousFp);
+      // Still the same open form: the person corrected the capture they already sent, so nothing new is stored.
+      if(previous.form===this.form)return {alreadySaved:true,sameForm:true};
       const distinct=confirm('El movimiento anterior'+(previous.label?' ('+previous.label+')':'')+' sí quedó guardado.\n\n¿Lo que capturaste ahora es un movimiento distinto que también quieres guardar?\n\nAceptar: guardarlo también.\nCancelar: no guardar nada más.');
       if(!distinct)return {alreadySaved:true};
     }
-    entries=this.receipts();entries[fingerprint]={key:crypto.randomUUID(),action,label};this.saveReceipts(entries);
+    entries=this.receipts();entries[fingerprint]={key:crypto.randomUUID(),action,label,form:this.form};this.saveReceipts(entries);
     return {fingerprint,...entries[fingerprint]};
   },
   removeReceipt(fp) {const r=this.receipts();delete r[fp];this.saveReceipts(r);},
@@ -63,7 +65,7 @@ const BT = {
     return packet;
   },
   apply(packet, repaint=true) {
-    const p=this.normalize(packet);S=p.state;this.user=p.user;this.branches=p.branches;this.pages=p.permissions;this.settingsVersion=p.settingsVersion;this.revision=p.revision;
+    const p=this.normalize(packet);for(const row of p.state.ownerLog||[])row.ts=this.stampUTC(row.ts);S=p.state;this.user=p.user;this.branches=p.branches;this.pages=p.permissions;this.settingsVersion=p.settingsVersion;this.revision=p.revision;
     role=p.user.role;const lock=lockedSuc();if(lock)currentSuc=lock;
     document.getElementById('roleName').textContent=p.user.display_name;
     document.getElementById('avatarEl').textContent=AVATARS[role]||'B';applyPerms();actualizarNotif();
@@ -95,7 +97,7 @@ const BT = {
     try{
       const label=[data?.concepto||data?.cliente||data?.proveedor||data?.folio||'',data?.monto!==undefined&&data?.monto!==''?new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(data.monto)):''].filter(Boolean).join(' · ');
       receipt=await this.receipt(action,data,label);
-      if(receipt.alreadySaved){receipt=null;this.apply(await this.request('state'),false);if(close)closeModal();render(roleHas(page)?page:'home');toast('El movimiento anterior ya estaba guardado. No se guardó nada más.');return true;}
+      if(receipt.alreadySaved){const same=receipt.sameForm;receipt=null;this.apply(await this.request('state'),false);if(close)closeModal();render(roleHas(page)?page:'home');toast(same?'Este movimiento ya había quedado guardado con los datos del primer envío. Revísalo en la lista; si hay que corregirlo, usa Editar o Anular.':'El movimiento anterior ya estaba guardado. No se guardó nada más.');return true;}
       await this.request(action,data,receipt.key);committed=true;
       // A confirmed write and a refreshed authoritative state are both required before closing.
       const packet=await this.request('state');this.apply(packet,false);
@@ -134,7 +136,16 @@ BT.request=async function(action,data,key){
   return btRequest(action,data,key);
 };
 const btModal=openModal;
-openModal=function(title,body){BT.capture();btModal(title,body);delete document.getElementById('modal').dataset.conflict;};
+openModal=function(title,body){BT.form=(BT.form||0)+1;BT.capture();btModal(title,body);delete document.getElementById('modal').dataset.conflict;limitTransferStatus();};
+// Whoever runs the cash confirms transfers; everyone else captures them as pending (the server enforces it too).
+ACTIONS.aprobarTransferencia=ACTIONS.corteCaja.slice();
+function limitTransferStatus(){
+  if(can('aprobarTransferencia'))return;
+  for(const select of document.querySelectorAll('#modal select[id$="_status"]')){
+    const confirmed=select.querySelector('option[value="Aprobada"]');if(!confirmed)continue;confirmed.remove();select.value='Pendiente';
+    select.insertAdjacentHTML('afterend','<div class="small muted" style="margin-top:4px">La confirma quien maneja la caja al verla en el banco.</div>');
+  }
+}
 const btClose=closeModal;
 closeModal=function(){BT.dirty=false;btClose();if(BT.user&&!BT.busy)BT.sync().catch(()=>{});};
 roleHas=page=>BT.pages.includes(page);
@@ -229,6 +240,55 @@ const btAdvance=avanzar;
 avanzar=function(i){const x=S.servicio[i];if(x.estado==='Autorizada')return service(i,'start');if(x.estado==='En reparación')return service(i,'ready');return btAdvance(i);};
 openSicar=async function(i){const x=S.ventas[i];if(!x?.evidenciaId)return toast('Este corte no tiene PDF adjunto.');try{const response=await fetch('evidence.php?id='+encodeURIComponent(x.evidenciaId),{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw new Error();const url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url;a.download=x.sicarArchivo||'SICAR.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}catch{toast('No se pudo consultar el PDF. Revisa tu conexión y permisos.');}};
 verNotificaciones=async function(){if(role!=='direccion')return;const ns=S.notifications;openModal('Avisos al Director',ns.length?ns.map(x=>'<div class="card" style="margin-top:8px"><b>'+h(x.texto)+'</b><div class="small muted">'+h(x.by)+' · '+h(x.ts)+'</div></div>').join(''):'<div class="card muted">No hay avisos.</div>');await BT.mutate('notification.read',{ids:ns.filter(x=>!x.read).map(x=>x.id)},{close:false});};
+// Voids: whoever runs the cash voids directly with a reason; the owner sees it afterwards in Control del sistema.
+const VOIDS={
+  egresos:{action:'expense.void',name:'gasto',text:x=>x.concepto,amount:x=>x.monto,cash:x=>x.impactaCajaFisica?x.cajaSucursal:''},
+  cobranzas:{action:'payment.void',name:'abono',text:x=>'Abono · '+x.cliente,amount:x=>x.monto,cash:x=>x.metodo==='Efectivo'?x.sucursal:'',note:'El saldo del cliente vuelve a quedar pendiente por este importe.'},
+  compras:{action:'supplier.voidInvoice',name:'factura de proveedor',text:x=>'Factura '+x.folio+' · '+x.proveedor,amount:x=>x.monto,cash:()=>'',note:'Deja de contar como deuda con el proveedor. Si fue un error de captura, vuelve a registrarla bien.'},
+  cajaMovimientos:{action:'cash.voidMovement',name:'movimiento de caja',text:x=>x.concepto,amount:x=>Number(x.entrada)||Number(x.salida),cash:x=>x.sucursal}
+};
+window.anularMovimiento=function(key,i){
+  const kind=VOIDS[key],x=S[key]?.[i];if(!kind||!x)return;if(!can('corteCaja'))return toast('Tu usuario no anula movimientos.');
+  const branch=kind.cash(x),cut=branch&&S.cortesCaja.find(c=>c.fecha===x.fecha&&c.sucursal===branch);
+  openModal('Anular '+kind.name,`<div class="callout"><b>${h(kind.text(x))}</b> · ${moneyC(kind.amount(x))}<br>${h(x.fecha||'')}${x.sucursal?' · '+h(x.sucursal):''}</div>
+  <div class="warnbox" style="margin-top:8px">Se conserva en el historial como anulado y deja de contar en saldos y reportes.${kind.note?' '+kind.note:''}${key==='egresos'?' Si fue un error, después captúralo bien.':''}</div>
+  ${cut?`<div class="badbox" style="margin-top:8px"><b>Aviso:</b> el corte de caja de ${h(branch)} del ${h(x.fecha)} ya está hecho. Ese corte no se recalcula; su diferencia ya no coincidirá con este movimiento.</div>`:''}
+  <div class="field full" style="margin-top:10px"><label for="anu_motivo">Motivo (obligatorio)</label><textarea id="anu_motivo" maxlength="500" placeholder="Ej. el abono era de $800, no de $8,000"></textarea></div>
+  <div style="margin-top:14px"><button class="primary" onclick="confirmarAnulacion('${key}',${i})">Anular</button></div>`);
+};
+window.confirmarAnulacion=function(key,i){
+  const motivo=val('anu_motivo').trim();if(!motivo)return toast('Escribe el motivo de la anulación.');
+  return BT.mutate(VOIDS[key].action,{...ident(key,i),motivo},{message:'Movimiento anulado ✓ · queda en el historial'});
+};
+// Expenses: the existing "Solicitar anulación" becomes a direct "Anular" for whoever runs the cash.
+const btExpenseActions=accionesEgreso;
+accionesEgreso=function(x){
+  const html=btExpenseActions(x);if(!can('corteCaja'))return html;const i=S.egresos.indexOf(x);
+  return html.replace(/onclick="(?:resolverAnulacionEgreso\(\d+,true\)|solicitarAnulacionEgreso\(\d+\))">(?:Anular|Solicitar anulación)<\/button>/,'onclick="anularMovimiento(\'egresos\','+i+')">Anular</button>');
+};
+// Abonos: an "Anular" button in "Abonos del período".
+const btCreditPage=PAGES.credito;
+PAGES.credito=function(){
+  const html=btCreditPage();if(!can('corteCaja'))return html;
+  const rows=filterPeriod(filterSuc(S.cobranzas),'fecha',getReportPeriod());let n=0;
+  const at=html.lastIndexOf('<h3>Abonos del período</h3>');if(at<0)return html;
+  const tail=html.slice(at).replace('<th>Monto</th></tr>','<th>Monto</th><th></th></tr>').replace(/<\/td><\/tr>/g,m=>{const x=rows[n++];return x?'</td><td><button class="secondary" onclick="anularMovimiento(\'cobranzas\','+S.cobranzas.indexOf(x)+')">Anular</button></td></tr>':m;}).replace('colspan="6"','colspan="7"');
+  return html.slice(0,at)+tail;
+};
+// Cash: manual movements of the period with an "Anular" button.
+const btCashPage=PAGES.caja;
+PAGES.caja=function(){
+  const html=btCashPage();if(!can('corteCaja'))return html;const p=getReportPeriod(),suc=sucName();
+  const rows=S.cajaMovimientos.filter(x=>inReportRange(x.fecha,p)&&(!suc||x.sucursal===suc));if(!rows.length)return html;
+  return html+`<div class="card" style="margin-top:13px"><h3>Movimientos manuales de efectivo · corregir</h3><p class="small muted" style="margin:-8px 0 12px">Si uno se capturó mal, anúlalo y vuelve a capturarlo.</p><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Sucursal</th><th>Tipo</th><th>Concepto</th><th>Importe</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td>${h(x.fecha)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(x.tipo)}</td><td>${h(x.concepto)}</td><td>${moneyC(Number(x.entrada)||-Number(x.salida))}</td><td><button class="secondary" onclick="anularMovimiento('cajaMovimientos',${S.cajaMovimientos.indexOf(x)})">Anular</button></td></tr>`).join('')}</tbody></table></div></div>`;
+};
+// Owner: read-only record of every void and transfer confirmation.
+function ownerLogHtml(){
+  const rows=S.ownerLog||[];
+  return `<div class="card" style="margin-top:13px"><h3>Anulaciones y confirmaciones</h3><p class="small muted" style="margin:-8px 0 12px">Solo consulta. Quien maneja la caja confirma transferencias y anula movimientos sin esperar autorización; aquí queda cada uno con fecha, hora, usuario y motivo.</p><div class="table-wrap"><table><thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Qué hizo</th><th>Movimiento</th><th>Importe</th><th>Sucursal</th><th>Motivo</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${h(x.ts)}</td><td>${h(x.usuario)}</td><td>${h(x.tipo)}</td><td>${h(x.detalle)}</td><td>${x.monto!==''?moneyC(Number(x.monto)):''}</td><td>${h(x.sucursal)}</td><td>${h(x.motivo)}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Todavía no hay anulaciones ni confirmaciones.</td></tr>'}</tbody></table></div></div>`;
+}
+const btOwnerPermissions=PAGES.permisos;
+PAGES.permisos=function(){return btOwnerPermissions()+(role==='direccion'?ownerLogHtml():'');};
 // Export protection: spreadsheet formulas must remain text, not execute when opened.
 const btExport=exportarCSV;
 exportarCSV=function(name,cols,rows){return btExport(name,cols,rows.map(row=>row.map(v=>typeof v==='string'&&/^[\s]*[=+@-]/.test(v)?"'"+v:v)));};

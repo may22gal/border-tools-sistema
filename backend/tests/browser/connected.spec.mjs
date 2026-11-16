@@ -109,14 +109,14 @@ test('SICAR PDF, credit allocation, payroll, commission and cash forms',async({p
  await page.getByRole('button',{name:'+ Hacer corte',exact:true}).click();await page.locator('#ccx_contado').fill('1300.00');await submit(page,'Guardar corte');
  const other=await browser.newContext({baseURL:'http://localhost:8080'});const p2=await other.newPage();await login(p2,'ventas_t');const res=await p2.request.get('/evidence.php?id='+receipt.evidenciaId);expect(res.status()).toBe(403);await other.close();
 });
-test('financial corrections, history and approval shared with Direction',async({page,browser},info)=>{
+test('financial corrections, history and owner record of voids',async({page,browser},info)=>{
  await login(page,'finanzas');const other=await browser.newContext({baseURL:'http://localhost:8080'});const director=await other.newPage();await login(director);
  await navigate(page,'gastos');await page.getByRole('button',{name:'+ Registrar gasto',exact:true}).click();const text='Autorización UI '+info.project.name+' '+Date.now();await page.locator('#e_concepto').fill(text);await page.locator('#e_monto').fill('77.00');await submit(page,'Guardar gasto');
  const line=page.locator('.rline').filter({hasText:text}).first();await line.getByRole('button',{name:'Editar',exact:true}).click();await page.locator('#ed_monto').fill('78.00');await submit(page,'Guardar cambios');await line.getByRole('button',{name:'Historial',exact:true}).click();await expect(page.locator('#modal')).toContainText('78');await expect(page.locator('#modal')).not.toContainText('_version');await expect(page.locator('#modal')).not.toContainText('_updatedAt');await page.locator('#modal').getByRole('button',{name:'✕',exact:true}).click();
- await line.getByRole('button',{name:'Solicitar anulación',exact:true}).click();await page.waitForFunction(()=>!BT.busy);
- await expect.poll(()=>director.evaluate(t=>S.egresos.find(e=>e.concepto===t)?.solicitudAnulacion?.estado,text),{timeout:15000}).toBe('Pendiente');
- await navigate(director,'finanzas');director.on('dialog',d=>d.accept());await director.getByRole('button',{name:'Autorizar anulación',exact:true}).last().click();await director.waitForFunction(()=>!BT.busy);
- await expect.poll(()=>page.evaluate(t=>S.egresos.find(e=>e.concepto===t)?.anulado,text),{timeout:15000}).toBe(true);await other.close();
+ await line.getByRole('button',{name:'Anular',exact:true}).click();await page.locator('#anu_motivo').fill('Capturado dos veces');await submit(page,'Anular');
+ await expect.poll(()=>page.evaluate(t=>S.egresos.find(e=>e.concepto===t)?.anulado,text),{timeout:15000}).toBe(true);
+ await expect.poll(()=>director.evaluate(()=>S.ownerLog.some(x=>x.tipo==='Egreso anulado'&&x.motivo==='Capturado dos veces')),{timeout:15000}).toBe(true);
+ await navigate(director,'permisos');await expect(director.locator('#view')).toContainText('Capturado dos veces');await other.close();
 });
 test('settings controls write only on server confirmation and restore original flag',async({page})=>{
  await login(page);await navigate(page,'permisos');const checkbox=page.locator('#chkTransfer');const initial=await checkbox.isChecked();await checkbox.setChecked(!initial);await page.waitForFunction(()=>!BT.busy);await page.reload();await expect(page.locator('#app')).not.toHaveClass(/hidden/);await navigate(page,'permisos');await expect(page.locator('#chkTransfer')).toBeChecked({checked:!initial});await page.locator('#chkTransfer').setChecked(initial);await page.waitForFunction(()=>!BT.busy);
@@ -158,8 +158,7 @@ test('edited uncertain submission cannot create a second expense',async({page},i
  await page.locator('#e_monto').fill('28.00');await page.locator('#modal button.primary').click();await expect(page.locator('#modal')).toHaveClass(/hidden/);await page.waitForFunction(()=>!BT.busy);expect(await page.evaluate(t=>S.egresos.filter(e=>e.concepto===t).map(e=>e.monto),concept)).toEqual([18]);
 });
 test('a different expense after an uncertain saved one is stored too, never lost',async({page},info)=>{
- await login(page);await navigate(page,'gastos');const first='Incierto guardado '+info.project.name+' '+Date.now(),second='Segundo distinto '+info.project.name+' '+Date.now();let lost=false;const dialogs=[];
- page.on('dialog',d=>{dialogs.push(d.message());d.accept();});
+ await login(page);await navigate(page,'gastos');const first='Incierto guardado '+info.project.name+' '+Date.now(),second='Segundo distinto '+info.project.name+' '+Date.now();let lost=false;
  await page.route('**/index.php?action=expense.create',async route=>{if(!lost){lost=true;await route.fetch();await route.abort('failed');}else await route.continue();});
  await page.getByRole('button',{name:'+ Registrar gasto',exact:true}).click();await page.locator('#e_concepto').fill(first);await page.locator('#e_monto').fill('15000.00');await page.locator('#modal button.primary').click();await page.waitForFunction(()=>!BT.busy);await expect(page.locator('#modal')).not.toHaveClass(/hidden/);
  await page.locator('#modal').getByRole('button',{name:'✕',exact:true}).click();
@@ -226,4 +225,15 @@ test('customer balance, rejected bank payment and insufficient stock stay consis
  await page.locator('#i_prod').fill(tag);await page.locator('#i_sku').fill(tag);await page.locator('#i_suc').selectOption('Granjero');await page.locator('#i_tipo').selectOption('Salida');await page.locator('#i_cant').fill('5');
  await page.locator('#modal').getByRole('button',{name:'Guardar',exact:true}).click();await expect(page.getByText('No hay suficientes piezas disponibles.',{exact:true})).toBeVisible();
  expect(await page.evaluate(sku=>S.stockMin.find(s=>s.sku===sku).actual,tag)).toBe(2);expect(await page.evaluate(sku=>S.inventario.some(s=>s.sku===sku),tag)).toBe(false);
+});
+test('cash user voids an abono with a reason and sellers capture transfers as pending',async({page,browser},info)=>{
+ await login(page,'finanzas');const name='Anular abono UI '+info.project.name+' '+Date.now();await navigate(page,'credito');await page.getByRole('button',{name:'+ Crédito manual',exact:true}).click();await page.locator('#cr_cliente').fill(name);await page.locator('#cr_suc').selectOption('Granjero');await page.locator('#cr_monto').fill('300.00');await submit(page,'Guardar crédito');
+ await page.locator('tr').filter({hasText:name}).getByRole('button',{name:'Registrar abono'}).click();await page.locator('#cc_monto').fill('80.00');await submit(page,'Registrar abono');
+ expect(await page.evaluate(n=>S.creditos.find(c=>c.cliente===n).saldo,name)).toBe(220);
+ await page.evaluate(n=>anularMovimiento('cobranzas',S.cobranzas.findIndex(c=>c.cliente===n)),name);
+ await page.locator('#modal').getByRole('button',{name:'Anular',exact:true}).click();await expect(page.locator('#modal')).not.toHaveClass(/hidden/);
+ await page.locator('#anu_motivo').fill('Era otro cliente');await submit(page,'Anular');
+ expect(await page.evaluate(n=>[S.creditos.find(c=>c.cliente===n).saldo,S.cobranzas.some(c=>c.cliente===n)],name)).toEqual([300,false]);
+ const other=await browser.newContext({baseURL:'http://localhost:8080'});const seller=await other.newPage();await login(seller,'ventas_g');
+ await seller.evaluate(()=>openVenta());expect(await seller.locator('#v_transfer_status option').evaluateAll(o=>o.map(x=>x.value))).toEqual(['Pendiente']);await other.close();
 });
