@@ -102,7 +102,8 @@
     "origenId": "VARCHAR(64) NULL",
     "empleadoId": "VARCHAR(64) NULL",
     "periodo": "VARCHAR(255) NOT NULL DEFAULT ''",
-    "compraId": "VARCHAR(64) NULL"
+    "compraId": "VARCHAR(64) NULL",
+    "motivoAnulacion": "TEXT NULL"
   },
   "nomina": {
     "nombre": "VARCHAR(255) NOT NULL DEFAULT ''",
@@ -131,7 +132,10 @@
     "estado": "VARCHAR(255) NOT NULL DEFAULT ''",
     "entrega": "DATE NULL",
     "facturaRegistrada": "BOOLEAN NOT NULL DEFAULT FALSE",
-    "vencimiento": "DATE NULL"
+    "vencimiento": "DATE NULL",
+    "anulado": "BOOLEAN NOT NULL DEFAULT FALSE",
+    "fechaAnulacion": "DATETIME(6) NULL",
+    "motivoAnulacion": "TEXT NULL"
   },
   "clientesB2B": {
     "nombre": "VARCHAR(255) NOT NULL DEFAULT ''",
@@ -160,7 +164,10 @@
     "metodo": "VARCHAR(255) NOT NULL DEFAULT ''",
     "transferenciaStatus": "VARCHAR(255) NOT NULL DEFAULT ''",
     "monto": "DECIMAL(18,2) NOT NULL DEFAULT 0",
-    "metodoOriginal": "VARCHAR(255) NOT NULL DEFAULT ''"
+    "metodoOriginal": "VARCHAR(255) NOT NULL DEFAULT ''",
+    "anulado": "BOOLEAN NOT NULL DEFAULT FALSE",
+    "fechaAnulacion": "DATETIME(6) NULL",
+    "motivoAnulacion": "TEXT NULL"
   },
   "stockMin": {
     "producto": "VARCHAR(255) NOT NULL DEFAULT ''",
@@ -188,7 +195,10 @@
     "metodo": "VARCHAR(255) NOT NULL DEFAULT ''",
     "concepto": "VARCHAR(255) NOT NULL DEFAULT ''",
     "entrada": "DECIMAL(18,2) NOT NULL DEFAULT 0",
-    "salida": "DECIMAL(18,2) NOT NULL DEFAULT 0"
+    "salida": "DECIMAL(18,2) NOT NULL DEFAULT 0",
+    "anulado": "BOOLEAN NOT NULL DEFAULT FALSE",
+    "fechaAnulacion": "DATETIME(6) NULL",
+    "motivoAnulacion": "TEXT NULL"
   },
   "saldos": {
     "archived": "BOOLEAN NOT NULL DEFAULT FALSE",

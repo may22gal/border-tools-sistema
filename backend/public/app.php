@@ -14,6 +14,9 @@ if($html===false){http_response_code(503);exit('Aplicación no disponible');}
 $html=str_replace('let S=loadState();',"let S={version:VERSION,config:{diagnosticoEstandar:250,requireTransferApproval:false,moduleFlags:{}}};ARRAY_KEYS.forEach(k=>S[k]=[]);",$html);
 $html=str_replace('onchange="S.config.requireTransferApproval=this.checked;save();toast(this.checked?\'Las transferencias pendientes ya no cuentan hasta confirmarlas\':\'Las transferencias pendientes cuentan como cobradas\');render(\'permisos\')"','onchange="BTSettings({requireTransferApproval:this.checked})"',$html);
 $html=str_replace('onchange="S.config.diagnosticoEstandar=Number(this.value)||250;save();toast(\'Costo de diagnóstico actualizado ✓\')"','onchange="BTSettings({diagnosticoEstandar:this.value})"',$html);
+// Transfers are confirmed by whoever runs the cash, not by the owner.
+$html=str_replace('hasta que el Director las confirme.','hasta que quien maneja la caja las confirme.',$html);
+$html=str_replace('<span class="muted small">La confirma el Director</span>','<span class="muted small">La confirma quien maneja la caja</span>',$html);
 // URI values embedded in legacy inline handlers must escape apostrophes too.
 $html=str_replace('encodeURIComponent(msg)',"encodeURIComponent(msg).replace(/'/g,'%27')",$html);
 $html=str_replace('encodeURIComponent(x.nombre)',"encodeURIComponent(x.nombre).replace(/'/g,'%27')",$html);

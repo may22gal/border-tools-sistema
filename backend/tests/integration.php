@@ -121,4 +121,38 @@ $db->prepare('UPDATE users SET auth_version=auth_version+1 WHERE id=?')->execute
 $credit=$repo->get('creditos',$credit['id']);$payload=ident($credit)+['fecha'=>'2026-01-15','monto'=>'60.00','metodo'=>'Efectivo'];$encoded=base64_encode(json_encode(['user'=>$user,'payload'=>$payload]));
 $processes=[];for($i=0;$i<2;$i++){$pipes=[];$proc=proc_open([PHP_BINARY,__DIR__.'/race-worker.php',$encoded,'race-payment-key-000'.$i],[1=>['pipe','w'],2=>['pipe','w']],$pipes);$processes[]=[$proc,$pipes];}
 $codes=[];foreach($processes as [$proc,$pipes]){$output=stream_get_contents($pipes[1]);$err=stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);ok(proc_close($proc)===0,'race worker executes '.$err);$codes[]=trim($output);}sort($codes);ok($codes===['200','409'],'concurrent payment conflict');ok($repo->get('creditos',$credit['id'])['saldo']==='0.00','balance never negative');
+
+// Transfers: only whoever runs the cash confirms; everyone else captures as pending.
+$tsale=cmd($salesApp,'sales.save',['fecha'=>'2028-03-01','sucursal'=>'Granjero','efectivo'=>'0.00','transferencia'=>'300.00','transferenciaStatus'=>'Aprobada','totalVentaSicar'=>'300.00']);ok($tsale['transferenciaStatus']==='Pendiente','seller cannot self-confirm a transfer');
+fails(fn()=>cmd($salesApp,'transfer.decide',ident($tsale)+['tipo'=>'venta','approved'=>true]),403);
+$tsale=cmd($financeApp,'transfer.decide',ident($tsale)+['tipo'=>'venta','approved'=>true]);ok($tsale['transferenciaStatus']==='Aprobada','cash user confirms transfer');
+$tsale=cmd($salesApp,'sales.save',ident($tsale)+['fecha'=>'2028-03-01','sucursal'=>'Granjero','transferencia'=>'300.00','transferenciaStatus'=>'Pendiente','totalVentaSicar'=>'300.00','observacion'=>'corrección']);ok($tsale['transferenciaStatus']==='Aprobada','replacing a cut keeps an unchanged transfer decision');
+$tsale=cmd($salesApp,'sales.save',ident($tsale)+['fecha'=>'2028-03-01','sucursal'=>'Granjero','transferencia'=>'350.00','transferenciaStatus'=>'Aprobada','totalVentaSicar'=>'350.00']);ok($tsale['transferenciaStatus']==='Pendiente','changed transfer amount returns to pending');
+$fsale=cmd($financeApp,'sales.save',['fecha'=>'2028-03-02','sucursal'=>'Troncoso','transferencia'=>'90.00','transferenciaStatus'=>'Aprobada','totalVentaSicar'=>'90.00']);ok($fsale['transferenciaStatus']==='Aprobada','cash user may capture a confirmed transfer');
+// Voiding an abono restores the debt once, needs a reason, and leaves the totals.
+$vc=cmd($financeApp,'credit.create',['cliente'=>'Cliente anulación','sucursal'=>'Granjero','fecha'=>'2028-03-01','monto'=>'300.00']);$vc=$repo->get('creditos',$vc['id']);
+$ab=cmd($financeApp,'credit.payment',ident($vc)+['fecha'=>'2028-03-03','monto'=>'100.00','metodo'=>'Efectivo']);ok($repo->get('creditos',$vc['id'])['saldo']==='200.00','abono applied');
+fails(fn()=>cmd($financeApp,'payment.void',ident($ab)+['motivo'=>'  ']),422);fails(fn()=>cmd($salesApp,'payment.void',ident($ab)+['motivo'=>'error']),403);
+$ab2=cmd($financeApp,'payment.void',ident($ab)+['motivo'=>'Era $10.00, no $100.00']);ok($ab2['anulado']&&$ab2['motivoAnulacion']==='Era $10.00, no $100.00','abono voided with reason');ok($repo->get('creditos',$vc['id'])['saldo']==='300.00'&&$repo->get('creditos',$vc['id'])['estado']==='Pendiente','debt restored');
+fails(fn()=>cmd($financeApp,'payment.void',ident($ab2)+['motivo'=>'otra vez']),409);ok($repo->get('creditos',$vc['id'])['saldo']==='300.00','second void does not restore twice');
+ok(!array_filter($repo->all('cobranzas'),fn($x)=>$x['id']===$ab['id']),'voided abono leaves lists and totals');
+$tab=cmd($financeApp,'credit.payment',ident($repo->get('creditos',$vc['id']))+['fecha'=>'2028-03-04','monto'=>'50.00','metodo'=>'Transferencia','transferenciaStatus'=>'Pendiente']);$tab=cmd($financeApp,'transfer.decide',ident($tab)+['tipo'=>'abono','approved'=>false]);ok($repo->get('creditos',$vc['id'])['saldo']==='300.00','rejected transfer restored');
+cmd($financeApp,'payment.void',ident($tab)+['motivo'=>'transferencia nunca llegó']);ok($repo->get('creditos',$vc['id'])['saldo']==='300.00','voiding a rejected transfer does not restore again');
+// Supplier invoice: payments are voided first, then the invoice; its folio can be registered again.
+$inv=cmd($financeApp,'supplier.invoice',['folio'=>'ANU-1','proveedor'=>'Proveedor anulación','fecha'=>'2028-03-01','sucursal'=>'Granjero','monto'=>'500.00']);
+$pay=cmd($financeApp,'supplier.pay',ident($inv)+['fecha'=>'2028-03-02','monto'=>'100.00','metodo'=>'Transferencia']);$inv=$repo->get('compras',$inv['id']);
+fails(fn()=>cmd($financeApp,'supplier.voidInvoice',ident($inv)+['motivo'=>'importe mal capturado']),409);
+cmd($financeApp,'expense.void',ident($pay)+['motivo'=>'pago duplicado']);ok((bool)$repo->get('egresos',$pay['id'])['anulado'],'expense voided directly by cash user');
+$inv=cmd($financeApp,'supplier.voidInvoice',ident($repo->get('compras',$inv['id']))+['motivo'=>'importe mal capturado']);ok((bool)$inv['anulado'],'invoice voided');
+$inv2=cmd($financeApp,'supplier.invoice',['folio'=>'ANU-1','proveedor'=>'Proveedor anulación','fecha'=>'2028-03-01','sucursal'=>'Granjero','monto'=>'50.00']);ok($inv2['monto']==='50.00','folio can be registered again after void');
+fails(fn()=>cmd($salesApp,'expense.void',ident($repo->get('egresos',$pay['id']))+['motivo'=>'x']),403);
+// Cash movement void leaves the cash totals.
+$mv=cmd($financeApp,'cash.movement',['fecha'=>'2028-03-05','sucursal'=>'Granjero','tipo'=>'Entrada','concepto'=>'Fondo','monto'=>'75.00']);
+ok($financeApp->report(['start'=>'2028-03-05','end'=>'2028-03-05'],'Granjero')['totals']['manual']==75.0,'movement counts');
+cmd($financeApp,'cash.voidMovement',ident($mv)+['motivo'=>'se capturó en la sucursal equivocada']);ok($financeApp->report(['start'=>'2028-03-05','end'=>'2028-03-05'],'Granjero')['totals']['manual']==0.0,'voided movement leaves cash totals');
+// The owner sees every void and confirmation, with who, when and why; others do not.
+$log=$app->state()['state']['ownerLog'];$types=array_column($log,'tipo');
+ok(in_array('Abono anulado',$types,true)&&in_array('Factura de proveedor anulada',$types,true)&&in_array('Movimiento de caja anulado',$types,true)&&in_array('Egreso anulado',$types,true)&&in_array('Transferencia confirmada',$types,true)&&in_array('Transferencia capturada como confirmada',$types,true),'owner log lists voids and confirmations');
+ok(count(array_filter($log,fn($x)=>$x['motivo']==='se capturó en la sucursal equivocada'&&$x['usuario']!==''&&$x['ts']!==''))===1,'owner log keeps reason, user and time');
+ok($financeApp->state()['state']['ownerLog']===[],'owner log only for the owner');
 ok((int)$db->query('SELECT COUNT(*) FROM change_log')->fetchColumn()>30,'persistent audit');echo "PASS $count integration assertions; MySQL transactions, roles, authentication and concurrent payments\n";

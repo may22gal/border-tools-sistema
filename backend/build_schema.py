@@ -6,6 +6,8 @@ T='VARCHAR(255) NOT NULL DEFAULT \'\''
 D='DATE NULL'
 B='BOOLEAN NOT NULL DEFAULT FALSE'
 J='JSON NULL'
+# Voided movements stay stored with who/when/why; balances exclude them.
+V=dict(anulado=B,fechaAnulacion='DATETIME(6) NULL',motivoAnulacion='TEXT NULL')
 def fields(**kw): return kw
 entities={
 'categoriasGastos': fields(nombre=T,fijo=B,activo='BOOLEAN NOT NULL DEFAULT TRUE'),
@@ -15,16 +17,16 @@ entities={
 'ml':fields(producto=T,precio='DECIMAL(18,2) NULL',mercado=T,stock='DECIMAL(18,4) NOT NULL DEFAULT 0',sucursal=T,estado=T),
 'oportunidades':fields(tipo=T,nombre=T,contacto=T,monto=M,sucursal=T,estado=T),
 'servicio':fields(folio=T,cliente=T,tel=T,herramienta=T,modelo=T,serie=T,sucursal=T,falla='TEXT NULL',entrada=D,estado=T,diagnostico='TEXT NULL',diagnosticoCosto=M,diagnosticoCobrado=M,diagnosticoFechaCobro=D,diagnosticoMetodo=T,diagnosticoSicar=T,responsableDiagnostico=T,reparacionBruta=M,cotizacion=M,autorizado=B,entrega=D,cobro=M,cobrado=B,garantia=B,notas='TEXT NULL',formaPago=T,reparacionSicar=T),
-'egresos':fields(fecha=D,grupo=T,concepto=T,categoria=T,proveedor=T,monto=M,sucursal=T,metodo=T,impactaCajaFisica=B,cajaSucursal=T,pagoAplazado=B,anulado=B,fechaAnulacion='DATETIME(6) NULL',origenCargoId='VARCHAR(64) NULL',origenId='VARCHAR(64) NULL',empleadoId='VARCHAR(64) NULL',periodo=T,compraId='VARCHAR(64) NULL'),
+'egresos':fields(fecha=D,grupo=T,concepto=T,categoria=T,proveedor=T,monto=M,sucursal=T,metodo=T,impactaCajaFisica=B,cajaSucursal=T,pagoAplazado=B,anulado=B,fechaAnulacion='DATETIME(6) NULL',origenCargoId='VARCHAR(64) NULL',origenId='VARCHAR(64) NULL',empleadoId='VARCHAR(64) NULL',periodo=T,compraId='VARCHAR(64) NULL',motivoAnulacion='TEXT NULL'),
 'nomina':fields(nombre=T,rol=T,sucursal=T,sueldo=M,ultimoPago=D,estado=T),
 'comisiones':fields(nombre=T,sucursal=T,tipo=T,periodo=T,monto=M,estado=T,fechaPago=D,empleadoId='VARCHAR(64) NULL'),
-'compras':fields(folio=T,proveedor=T,fecha=D,monto=M,sucursal=T,estado=T,entrega=D,facturaRegistrada=B,vencimiento=D),
+'compras':fields(folio=T,proveedor=T,fecha=D,monto=M,sucursal=T,estado=T,entrega=D,facturaRegistrada=B,vencimiento=D,**V),
 'clientesB2B':fields(nombre=T,contacto=T,sucursal=T,compras=M,credito=M,saldo=M),
 'creditos':fields(cliente=T,clienteId='VARCHAR(64) NULL',fecha=D,sucursal=T,monto=M,saldo=M,estado=T,origenCorte='VARCHAR(64) NULL'),
-'cobranzas':fields(fecha=D,creditoId='VARCHAR(64) NULL',clienteId='VARCHAR(64) NULL',cliente=T,sucursal=T,metodo=T,transferenciaStatus=T,monto=M,metodoOriginal=T),
+'cobranzas':fields(fecha=D,creditoId='VARCHAR(64) NULL',clienteId='VARCHAR(64) NULL',cliente=T,sucursal=T,metodo=T,transferenciaStatus=T,monto=M,metodoOriginal=T,**V),
 'stockMin':fields(producto=T,sku=T,actual='DECIMAL(18,4) NOT NULL DEFAULT 0',minimo='DECIMAL(18,4) NOT NULL DEFAULT 0',sucursal=T),
 'cortesCaja':fields(fecha=D,sucursal=T,fondo=M,esperado=M,contado=M,diferencia=M,retiro=M,queda=M,responsable=T,cajaId=T),
-'cajaMovimientos':fields(fecha=D,sucursal=T,tipo=T,metodo=T,concepto=T,entrada=M,salida=M),
+'cajaMovimientos':fields(fecha=D,sucursal=T,tipo=T,metodo=T,concepto=T,entrada=M,salida=M,**V),
 'saldos':fields(archived=B,cuenta=T,tipo=T,sucursal=T,saldo=M,fecha=D),
 }
 sql=['-- MySQL 8.0+, InnoDB; apply only to a NEW dedicated database. No DROP or TRUNCATE.',

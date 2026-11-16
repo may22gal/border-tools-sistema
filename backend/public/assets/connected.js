@@ -19,17 +19,32 @@ const BT = {
   },
   receipts() {try{return JSON.parse(sessionStorage.getItem(this.pendingStorage)||'{}');}catch{return {};}},
   saveReceipts(value) {sessionStorage.setItem(this.pendingStorage,JSON.stringify(value));},
-  async receipt(action,data) {
+  async receipt(action,data,label='') {
     const bytes=new TextEncoder().encode(JSON.stringify([action,data]));
     const digest=await crypto.subtle.digest('SHA-256',bytes);
     const fingerprint=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
-    const entries=this.receipts();
+    let entries=this.receipts();
+    // The same capture sent again keeps its key: the server stores it at most once.
     if(entries[fingerprint])return {fingerprint,...entries[fingerprint]};
-    // An uncertain submission keeps its key even if the form is edited or reopened.
-    // The server can commit one payload for that key, never a second payment.
+    // A different capture of the same kind while an earlier send is uncertain:
+    // ask the server first, so neither a duplicate nor a lost movement is possible.
     const pending=Object.entries(entries).find(([,entry])=>entry.action===action);
-    if(pending)return {fingerprint:pending[0],...pending[1]};
-    entries[fingerprint]={key:crypto.randomUUID(),action};this.saveReceipts(entries);
+    if(pending){
+      const [previousFp,previous]=pending;let status;
+      try{status=await this.request('request.status&key='+previous.key);}
+      catch{throw Object.assign(new Error('No se pudo comprobar si el envío anterior quedó guardado. Tu captura sigue abierta; reintenta cuando vuelva internet.'),{checkFailed:true});}
+      if(!status.confirmed){
+        // The server never stored the earlier send: this capture replaces it under the same key.
+        entries=this.receipts();delete entries[previousFp];entries[fingerprint]={...previous,label};this.saveReceipts(entries);
+        return {fingerprint,...entries[fingerprint]};
+      }
+      this.removeReceipt(previousFp);
+      // Still the same open form: the person corrected the capture they already sent, so nothing new is stored.
+      if(previous.form===this.form)return {alreadySaved:true,sameForm:true};
+      const distinct=confirm('El movimiento anterior'+(previous.label?' ('+previous.label+')':'')+' sí quedó guardado.\n\n¿Lo que capturaste ahora es un movimiento distinto que también quieres guardar?\n\nAceptar: guardarlo también.\nCancelar: no guardar nada más.');
+      if(!distinct)return {alreadySaved:true};
+    }
+    entries=this.receipts();entries[fingerprint]={key:crypto.randomUUID(),action,label,form:this.form};this.saveReceipts(entries);
     return {fingerprint,...entries[fingerprint]};
   },
   removeReceipt(fp) {const r=this.receipts();delete r[fp];this.saveReceipts(r);},
@@ -50,7 +65,7 @@ const BT = {
     return packet;
   },
   apply(packet, repaint=true) {
-    const p=this.normalize(packet);S=p.state;this.user=p.user;this.branches=p.branches;this.pages=p.permissions;this.settingsVersion=p.settingsVersion;this.revision=p.revision;
+    const p=this.normalize(packet);for(const row of p.state.ownerLog||[])row.ts=this.stampUTC(row.ts);S=p.state;this.user=p.user;this.branches=p.branches;this.pages=p.permissions;this.settingsVersion=p.settingsVersion;this.revision=p.revision;
     role=p.user.role;const lock=lockedSuc();if(lock)currentSuc=lock;
     document.getElementById('roleName').textContent=p.user.display_name;
     document.getElementById('avatarEl').textContent=AVATARS[role]||'B';applyPerms();actualizarNotif();
@@ -58,7 +73,17 @@ const BT = {
   },
   async sync(force=false) {
     if(this.syncing||(!force&&(this.busy||!this.user||document.getElementById('sidebar').classList.contains('open')||!document.getElementById('modal').classList.contains('hidden'))))return;
-    this.syncing=true;try{const packet=await this.request('state');if(force||(!this.busy&&document.getElementById('modal').classList.contains('hidden')&&!document.getElementById('sidebar').classList.contains('open')))this.apply(packet);}finally{this.syncing=false;}
+    this.syncing=true;try{const packet=await this.request('state');if(force||(!this.busy&&document.getElementById('modal').classList.contains('hidden')&&!document.getElementById('sidebar').classList.contains('open'))){
+      // Repaint only when the shared data changed, and never under a field the person is using.
+      // Buttons on the screen point to rows of the data they were drawn from, so data and screen change together.
+      const snapshot=JSON.stringify(packet);if(!force&&snapshot===this.lastSnapshot&&!this.repaintPending)return;
+      if(!force&&this.editingView()){this.repaintPending=true;return;}
+      this.lastSnapshot=snapshot;this.repaintPending=false;this.apply(packet);
+    }}finally{this.syncing=false;}
+  },
+  editingView() {
+    const el=document.activeElement,view=document.getElementById('view');
+    return !!(el&&view&&view.contains(el)&&(['INPUT','SELECT','TEXTAREA'].includes(el.tagName)||el.isContentEditable));
   },
   capture() {
     this.records.clear();for(const key of ARRAY_KEYS)for(let i=0;i<(S[key]||[]).length;i++)this.records.set(key+':'+i,structuredClone(S[key][i]));
@@ -70,14 +95,19 @@ const BT = {
     const buttons=[...document.querySelectorAll('#modal button,.orden-actions button,.btn-row button')];const states=buttons.map(b=>b.disabled);buttons.forEach(b=>b.disabled=true);
     let receipt,committed=false;
     try{
-      receipt=await this.receipt(action,data);
+      const label=[data?.concepto||data?.cliente||data?.proveedor||data?.folio||'',data?.monto!==undefined&&data?.monto!==''?new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(data.monto)):''].filter(Boolean).join(' · ');
+      receipt=await this.receipt(action,data,label);
+      if(receipt.alreadySaved){const same=receipt.sameForm;receipt=null;this.apply(await this.request('state'),false);if(close)closeModal();render(roleHas(page)?page:'home');toast(same?'Este movimiento ya había quedado guardado con los datos del primer envío. Revísalo en la lista; si hay que corregirlo, usa Editar o Anular.':'El movimiento anterior ya estaba guardado. No se guardó nada más.');return true;}
       await this.request(action,data,receipt.key);committed=true;
       // A confirmed write and a refreshed authoritative state are both required before closing.
       const packet=await this.request('state');this.apply(packet,false);
       this.removeReceipt(receipt.fingerprint);if(close)closeModal();if(after)after();render(roleHas(page)?page:'home');if(after)after(true);toast(message);return true;
     }catch(e){
+      if(e.checkFailed){toast(e.message);return false;}
       if(receipt&&e.status===409){
-        try{const status=await this.request('request.status&key='+receipt.key);if(status.confirmed){committed=true;this.apply(await this.request('state'),false);this.removeReceipt(receipt.fingerprint);if(close)closeModal();render(roleHas(page)?page:'home');toast('El envío anterior ya estaba guardado. Se actualizaron sus datos; no se creó otro movimiento.');return true;}}catch{toast('No se pudo comprobar el envío anterior. Conserva la captura y reintenta con conexión.');return false;}
+        try{const status=await this.request('request.status&key='+receipt.key);if(status.confirmed){
+          // Only possible when an earlier, different send landed first. This capture was NOT stored: keep it open.
+          this.removeReceipt(receipt.fingerprint);await this.syncConflict();toast('El envío anterior sí quedó guardado, pero esta captura todavía no. Revisa la lista y, si es otro movimiento, presiona guardar de nuevo.');return false;}}catch{toast('No se pudo comprobar el envío anterior. Conserva la captura y reintenta con conexión.');return false;}
       }
       if(receipt&&e.status&&e.status<500)this.removeReceipt(receipt.fingerprint);
       if(e.status===409){await this.syncConflict();}
@@ -106,7 +136,16 @@ BT.request=async function(action,data,key){
   return btRequest(action,data,key);
 };
 const btModal=openModal;
-openModal=function(title,body){BT.capture();btModal(title,body);delete document.getElementById('modal').dataset.conflict;};
+openModal=function(title,body){BT.form=(BT.form||0)+1;BT.capture();btModal(title,body);delete document.getElementById('modal').dataset.conflict;limitTransferStatus();};
+// Whoever runs the cash confirms transfers; everyone else captures them as pending (the server enforces it too).
+ACTIONS.aprobarTransferencia=ACTIONS.corteCaja.slice();
+function limitTransferStatus(){
+  if(can('aprobarTransferencia'))return;
+  for(const select of document.querySelectorAll('#modal select[id$="_status"]')){
+    const confirmed=select.querySelector('option[value="Aprobada"]');if(!confirmed)continue;confirmed.remove();select.value='Pendiente';
+    select.insertAdjacentHTML('afterend','<div class="small muted" style="margin-top:4px">La confirma quien maneja la caja al verla en el banco.</div>');
+  }
+}
 const btClose=closeModal;
 closeModal=function(){BT.dirty=false;btClose();if(BT.user&&!BT.busy)BT.sync().catch(()=>{});};
 roleHas=page=>BT.pages.includes(page);
@@ -201,6 +240,55 @@ const btAdvance=avanzar;
 avanzar=function(i){const x=S.servicio[i];if(x.estado==='Autorizada')return service(i,'start');if(x.estado==='En reparación')return service(i,'ready');return btAdvance(i);};
 openSicar=async function(i){const x=S.ventas[i];if(!x?.evidenciaId)return toast('Este corte no tiene PDF adjunto.');try{const response=await fetch('evidence.php?id='+encodeURIComponent(x.evidenciaId),{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw new Error();const url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url;a.download=x.sicarArchivo||'SICAR.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}catch{toast('No se pudo consultar el PDF. Revisa tu conexión y permisos.');}};
 verNotificaciones=async function(){if(role!=='direccion')return;const ns=S.notifications;openModal('Avisos al Director',ns.length?ns.map(x=>'<div class="card" style="margin-top:8px"><b>'+h(x.texto)+'</b><div class="small muted">'+h(x.by)+' · '+h(x.ts)+'</div></div>').join(''):'<div class="card muted">No hay avisos.</div>');await BT.mutate('notification.read',{ids:ns.filter(x=>!x.read).map(x=>x.id)},{close:false});};
+// Voids: whoever runs the cash voids directly with a reason; the owner sees it afterwards in Control del sistema.
+const VOIDS={
+  egresos:{action:'expense.void',name:'gasto',text:x=>x.concepto,amount:x=>x.monto,cash:x=>x.impactaCajaFisica?x.cajaSucursal:''},
+  cobranzas:{action:'payment.void',name:'abono',text:x=>'Abono · '+x.cliente,amount:x=>x.monto,cash:x=>x.metodo==='Efectivo'?x.sucursal:'',note:'El saldo del cliente vuelve a quedar pendiente por este importe.'},
+  compras:{action:'supplier.voidInvoice',name:'factura de proveedor',text:x=>'Factura '+x.folio+' · '+x.proveedor,amount:x=>x.monto,cash:()=>'',note:'Deja de contar como deuda con el proveedor. Si fue un error de captura, vuelve a registrarla bien.'},
+  cajaMovimientos:{action:'cash.voidMovement',name:'movimiento de caja',text:x=>x.concepto,amount:x=>Number(x.entrada)||Number(x.salida),cash:x=>x.sucursal}
+};
+window.anularMovimiento=function(key,i){
+  const kind=VOIDS[key],x=S[key]?.[i];if(!kind||!x)return;if(!can('corteCaja'))return toast('Tu usuario no anula movimientos.');
+  const branch=kind.cash(x),cut=branch&&S.cortesCaja.find(c=>c.fecha===x.fecha&&c.sucursal===branch);
+  openModal('Anular '+kind.name,`<div class="callout"><b>${h(kind.text(x))}</b> · ${moneyC(kind.amount(x))}<br>${h(x.fecha||'')}${x.sucursal?' · '+h(x.sucursal):''}</div>
+  <div class="warnbox" style="margin-top:8px">Se conserva en el historial como anulado y deja de contar en saldos y reportes.${kind.note?' '+kind.note:''}${key==='egresos'?' Si fue un error, después captúralo bien.':''}</div>
+  ${cut?`<div class="badbox" style="margin-top:8px"><b>Aviso:</b> el corte de caja de ${h(branch)} del ${h(x.fecha)} ya está hecho. Ese corte no se recalcula; su diferencia ya no coincidirá con este movimiento.</div>`:''}
+  <div class="field full" style="margin-top:10px"><label for="anu_motivo">Motivo (obligatorio)</label><textarea id="anu_motivo" maxlength="500" placeholder="Ej. el abono era de $800, no de $8,000"></textarea></div>
+  <div style="margin-top:14px"><button class="primary" onclick="confirmarAnulacion('${key}',${i})">Anular</button></div>`);
+};
+window.confirmarAnulacion=function(key,i){
+  const motivo=val('anu_motivo').trim();if(!motivo)return toast('Escribe el motivo de la anulación.');
+  return BT.mutate(VOIDS[key].action,{...ident(key,i),motivo},{message:'Movimiento anulado ✓ · queda en el historial'});
+};
+// Expenses: the existing "Solicitar anulación" becomes a direct "Anular" for whoever runs the cash.
+const btExpenseActions=accionesEgreso;
+accionesEgreso=function(x){
+  const html=btExpenseActions(x);if(!can('corteCaja'))return html;const i=S.egresos.indexOf(x);
+  return html.replace(/onclick="(?:resolverAnulacionEgreso\(\d+,true\)|solicitarAnulacionEgreso\(\d+\))">(?:Anular|Solicitar anulación)<\/button>/,'onclick="anularMovimiento(\'egresos\','+i+')">Anular</button>');
+};
+// Abonos: an "Anular" button in "Abonos del período".
+const btCreditPage=PAGES.credito;
+PAGES.credito=function(){
+  const html=btCreditPage();if(!can('corteCaja'))return html;
+  const rows=filterPeriod(filterSuc(S.cobranzas),'fecha',getReportPeriod());let n=0;
+  const at=html.lastIndexOf('<h3>Abonos del período</h3>');if(at<0)return html;
+  const tail=html.slice(at).replace('<th>Monto</th></tr>','<th>Monto</th><th></th></tr>').replace(/<\/td><\/tr>/g,m=>{const x=rows[n++];return x?'</td><td><button class="secondary" onclick="anularMovimiento(\'cobranzas\','+S.cobranzas.indexOf(x)+')">Anular</button></td></tr>':m;}).replace('colspan="6"','colspan="7"');
+  return html.slice(0,at)+tail;
+};
+// Cash: manual movements of the period with an "Anular" button.
+const btCashPage=PAGES.caja;
+PAGES.caja=function(){
+  const html=btCashPage();if(!can('corteCaja'))return html;const p=getReportPeriod(),suc=sucName();
+  const rows=S.cajaMovimientos.filter(x=>inReportRange(x.fecha,p)&&(!suc||x.sucursal===suc));if(!rows.length)return html;
+  return html+`<div class="card" style="margin-top:13px"><h3>Movimientos manuales de efectivo · corregir</h3><p class="small muted" style="margin:-8px 0 12px">Si uno se capturó mal, anúlalo y vuelve a capturarlo.</p><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Sucursal</th><th>Tipo</th><th>Concepto</th><th>Importe</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td>${h(x.fecha)}</td><td>${sucBadge(x.sucursal)}</td><td>${h(x.tipo)}</td><td>${h(x.concepto)}</td><td>${moneyC(Number(x.entrada)||-Number(x.salida))}</td><td><button class="secondary" onclick="anularMovimiento('cajaMovimientos',${S.cajaMovimientos.indexOf(x)})">Anular</button></td></tr>`).join('')}</tbody></table></div></div>`;
+};
+// Owner: read-only record of every void and transfer confirmation.
+function ownerLogHtml(){
+  const rows=S.ownerLog||[];
+  return `<div class="card" style="margin-top:13px"><h3>Anulaciones y confirmaciones</h3><p class="small muted" style="margin:-8px 0 12px">Solo consulta. Quien maneja la caja confirma transferencias y anula movimientos sin esperar autorización; aquí queda cada uno con fecha, hora, usuario y motivo.</p><div class="table-wrap"><table><thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Qué hizo</th><th>Movimiento</th><th>Importe</th><th>Sucursal</th><th>Motivo</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${h(x.ts)}</td><td>${h(x.usuario)}</td><td>${h(x.tipo)}</td><td>${h(x.detalle)}</td><td>${x.monto!==''?moneyC(Number(x.monto)):''}</td><td>${h(x.sucursal)}</td><td>${h(x.motivo)}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Todavía no hay anulaciones ni confirmaciones.</td></tr>'}</tbody></table></div></div>`;
+}
+const btOwnerPermissions=PAGES.permisos;
+PAGES.permisos=function(){return btOwnerPermissions()+(role==='direccion'?ownerLogHtml():'');};
 // Export protection: spreadsheet formulas must remain text, not execute when opened.
 const btExport=exportarCSV;
 exportarCSV=function(name,cols,rows){return btExport(name,cols,rows.map(row=>row.map(v=>typeof v==='string'&&/^[\s]*[=+@-]/.test(v)?"'"+v:v)));};
@@ -215,5 +303,7 @@ setInterval(()=>BT.sync().then(()=>BT.recover()).catch(()=>{}),5000);
 window.addEventListener('focus',()=>{BT.sync().then(()=>BT.recover()).catch(()=>{});});
 window.addEventListener('online',()=>{BT.sync().then(()=>BT.recover()).catch(()=>{});});
 document.getElementById('modal').addEventListener('input',()=>{BT.dirty=true;});
+// Newer data that arrived while someone was using a field is shown shortly after they leave it.
+document.getElementById('view').addEventListener('focusout',()=>{setTimeout(()=>{if(BT.repaintPending&&!BT.editingView())BT.sync().catch(()=>{});},1500);});
 window.addEventListener('beforeunload',e=>{if(BT.busy||BT.dirty||Object.keys(BT.receipts()).length){e.preventDefault();e.returnValue='';}});
 (async()=>{try{BT.csrf=(await BT.request('csrf')).csrf;const p=await BT.request('state');if(sessionStorage.getItem('bt_receipt_owner')&&sessionStorage.getItem('bt_receipt_owner')!==p.user.id)BT.saveReceipts({});sessionStorage.setItem('bt_receipt_owner',p.user.id);BT.apply(p);document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden');await BT.recover();}catch(e){if(e.status!==401)toast(e.message||'No se pudo conectar al servidor.');}})();
