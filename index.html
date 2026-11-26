@@ -1158,10 +1158,20 @@ function actualizarCuadre(){
   box.innerHTML=Math.abs(dif)<0.02?`<div class="okbox">✓ Cuadra con SICAR: efectivo + tarjeta + transferencia + crédito = Total Venta.</div>`:`<div class="warnbox">⚠ Diferencia de ${moneyC(Math.abs(dif))} contra el Total Venta de SICAR ${dif>0?'(falta capturar)':'(hay de más)'}. Puedes guardar; anótalo en la observación.</div>`;
 }
 function parseMonto(s){return parseFloat(String(s).replace(/,/g,''))}
-function parseSicarTotales(text){
+function totalVentaReporte(seg, esPdf){
+  const numero = /(?:\d{1,3}(?:,\d{3})+|\d+)/.source;
+  const importe = esPdf ? '(?:\\$\\s*'+numero+'(?:\\.\\d{1,2})?|'+numero+'\\.\\d{2})' : '\\$?\\s*'+numero+'(?:\\.\\d{1,2})?';
+  for(const etiqueta of ['Total\\s+Venta', 'Total\\s+General']){
+    const patron = new RegExp(etiqueta + '\\s*:?\\s*(' + importe + ')(?![\\d.,/:-])', 'i');
+    const m = seg.match(patron);
+    if(m) return parseMonto(m[1].replace('$','').trim());
+  }
+  return null;
+}
+function parseSicarTotales(text, esPdf=false){
   const idx=text.indexOf('Totales por Forma de Pago');const seg=idx>=0?text.slice(idx,idx+1200):text;
   const grab=l=>{const m=seg.match(new RegExp(l+'\\s*:?\\s*\\$?\\s*([\\d,]+(?:\\.\\d{1,2})?)','i'));return m?parseMonto(m[1]):null};
-  const out={efectivo:grab('Efectivo'),credito:grab('Cr[eé]dito'),transferencia:grab('Transferencia'),tarjeta:grab('Tarjeta'),cheque:grab('Cheque'),totalGeneral:grab('Total\\s*(?:General|Venta)'),
+  const out={efectivo:grab('Efectivo'),credito:grab('Cr[eé]dito'),transferencia:grab('Transferencia'),tarjeta:grab('Tarjeta'),cheque:grab('Cheque'),totalGeneral:totalVentaReporte(seg, esPdf),
     otras:['Vales','Anticipo'].map(grab).reduce((a,b)=>a+(b||0),0)};
   if(out.efectivo===null&&out.tarjeta===null&&out.transferencia===null&&out.credito===null&&out.totalGeneral===null)return null;
   return out;
@@ -1169,10 +1179,10 @@ function parseSicarTotales(text){
 function parseManoDeObra(text){let total=0,m;const re=/mano de obra[^\n$]*\$\s*([\d,]+\.\d{2})(?:\s*\$\s*([\d,]+\.\d{2}))?/gi;while((m=re.exec(text))){const v=parseMonto(m[2]!==undefined?m[2]:m[1]);if(!isNaN(v))total+=v}return total}
 function aplicarTotalesSicar(t,texto,statusEl,fuente){
   const set=(id,v)=>{if(v!==null&&v!==undefined){document.getElementById(id).value=v}};
-  set('v_efectivo',t.efectivo);set('v_transfer',t.transferencia);set('v_tarjeta',t.tarjeta);set('v_cheque',t.cheque);set('v_credito',t.credito);set('v_sicar_total',t.totalGeneral);
+  set('v_efectivo',t.efectivo);set('v_transfer',t.transferencia);set('v_tarjeta',t.tarjeta);set('v_cheque',t.cheque);set('v_credito',t.credito);set('v_sicar_total',t.totalGeneral ?? '');
   const mano=parseManoDeObra(texto||'');if(mano>0)set('v_mano',mano);
   const extra=t.otras>0?`<br><span style="color:var(--amber)">⚠ SICAR reporta ${moneyC(t.otras)} en otras formas de pago que el sistema no maneja. Anótalo en la observación; el cuadre mostrará la diferencia.</span>`:'';
-  if(statusEl)statusEl.innerHTML=`<span style="color:var(--green)">✓ Leído ${fuente==='pegado'?'del texto pegado':'del PDF de SICAR'}: Efectivo ${moneyC(t.efectivo||0)}, Tarjeta ${moneyC(t.tarjeta||0)}, Transferencia ${moneyC(t.transferencia||0)}, Cheque ${moneyC(t.cheque||0)}, Crédito ${moneyC(t.credito||0)}${t.totalGeneral!==null?`, Total ${moneyC(t.totalGeneral)}`:''}${mano>0?`, Mano de obra ${moneyC(mano)} (verifícala)`:''}.</span>${extra}`;
+  if(statusEl)statusEl.innerHTML=`<span style="color:var(--green)">✓ Leído ${fuente==='pegado'?'del texto pegado':'del PDF de SICAR'}: Efectivo ${moneyC(t.efectivo||0)}, Tarjeta ${moneyC(t.tarjeta||0)}, Transferencia ${moneyC(t.transferencia||0)}, Cheque ${moneyC(t.cheque||0)}, Crédito ${moneyC(t.credito||0)}${t.totalGeneral!==null?`, Total ${moneyC(t.totalGeneral)}`:', captura el Total Venta que aparece en el reporte'}${mano>0?`, Mano de obra ${moneyC(mano)} (verifícala)`:''}.</span>${extra}`;
   actualizarCuadre();
 }
 function leerTextoPegado(){
@@ -1188,7 +1198,7 @@ async function leerReporteSicar(input){
   st.innerHTML='<span class="muted">Leyendo el reporte de SICAR…</span>';
   try{const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;let text='';
     for(let i=1;i<=pdf.numPages;i++){const c=await (await pdf.getPage(i)).getTextContent();text+=c.items.map(it=>it.str).join(' ')+'\n'}
-    const t=parseSicarTotales(text);
+    const t=parseSicarTotales(text,true);
     if(!t){st.innerHTML='<span style="color:var(--amber)">⚠ No reconocí la tabla "Totales por Forma de Pago". Usa "Pegar totales" o escríbelos.</span>';return}
     aplicarTotalesSicar(t,text,st,'pdf');
   }catch(e){console.error(e);st.innerHTML='<span style="color:var(--amber)">⚠ No pude leer este PDF. Usa "Pegar totales" o escríbelos a mano.</span>'}
