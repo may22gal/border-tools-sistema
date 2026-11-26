@@ -140,6 +140,8 @@ function matchingClient(name,sucursal){return S.clientesB2B.find(c=>c.nombre===n
 saveVenta=async function(){
   if(BT.busy||saveVenta.preparing)return;
   const d=fields({fecha:'v_fecha',sucursal:'v_suc',efectivo:'v_efectivo',transferencia:'v_transfer',tarjeta:'v_tarjeta',cheque:'v_cheque',credito:'v_credito',manoObra:'v_mano',totalVentaSicar:'v_sicar_total',transferenciaStatus:'v_transfer_status',observacion:'v_obs'});
+  if(!(Number(d.totalVentaSicar)>0))return toast('Captura el Total Venta que aparece en el reporte SICAR.');
+  if(Number(d.manoObra)>Number(d.totalVentaSicar))return toast(`Mano de obra (${moneyC(Number(d.manoObra))}) supera el Total Venta SICAR (${moneyC(Number(d.totalVentaSicar))}). Revisa ambos importes.`);
   const old=S.ventas.find(x=>x.fecha===d.fecha&&x.sucursal===d.sucursal);
   if(old){if(!confirm(`Ya existe un corte de ${d.sucursal} del ${d.fecha}. ¿Reemplazarlo?`))return;Object.assign(d,BT.identity(old));}
   const file=document.getElementById('v_pdf')?.files?.[0];
